@@ -1,0 +1,58 @@
+This is BibTeX, Version 0.99c (TeX Live 2009/Debian)
+The top-level auxiliary file: recoalgo.aux
+The style file: plain.bst
+Database file #1: references.bib
+Name 4 in "Hill, W. and Stead L. and Rosenstein M. and Furnas G.," has a comma at the end for entry hill
+while executing---line 1049 of file plain.bst
+Name 1 in "Cureton, E.E., and D'Agostino, R. B" has a comma at the end for entry cureton
+while executing---line 1049 of file plain.bst
+Name 1 in "Cureton, E.E., and D'Agostino, R. B" has a comma at the end for entry cureton
+while executing---line 1090 of file plain.bst
+Warning--empty booktitle in cureton
+Name 4 in "Hill, W. and Stead L. and Rosenstein M. and Furnas G.," has a comma at the end for entry hill
+while executing---line 1090 of file plain.bst
+Warning--empty booktitle in konstan
+Warning--empty booktitle in badrul
+Warning--empty booktitle in alexander
+You've used 15 entries,
+            2118 wiz_defined-function locations,
+            575 strings with 6567 characters,
+and the built_in function-call counts, 5754 in all, are:
+= -- 504
+> -- 314
+< -- 8
++ -- 123
+- -- 108
+* -- 362
+:= -- 914
+add.period$ -- 45
+call.type$ -- 15
+change.case$ -- 99
+chr.to.int$ -- 0
+cite$ -- 19
+duplicate$ -- 255
+empty$ -- 484
+format.name$ -- 108
+if$ -- 1257
+int.to.chr$ -- 0
+int.to.str$ -- 15
+missing$ -- 15
+newline$ -- 78
+num.names$ -- 30
+pop$ -- 151
+preamble$ -- 1
+purify$ -- 84
+quote$ -- 0
+skip$ -- 180
+stack$ -- 0
+substring$ -- 218
+swap$ -- 76
+text.length$ -- 8
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 60
+warning$ -- 4
+while$ -- 44
+width$ -- 17
+write$ -- 158
+(There were 4 error messages)

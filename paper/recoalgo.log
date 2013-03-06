@@ -1,0 +1,502 @@
+This is pdfTeX, Version 3.1415926-1.40.10 (TeX Live 2009/Debian) (format=pdflatex 2013.1.15)  23 JAN 2013 22:43
+entering extended mode
+ %&-line parsing enabled.
+**recoalgo.tex
+(./recoalgo.tex
+LaTeX2e <2009/09/24>
+Babel <v3.8l> and hyphenation patterns for english, usenglishmax, dumylang, noh
+yphenation, farsi, arabic, croatian, bulgarian, ukrainian, russian, czech, slov
+ak, danish, dutch, finnish, french, basque, ngerman, german, german-x-2009-06-1
+9, ngerman-x-2009-06-19, ibycus, monogreek, greek, ancientgreek, hungarian, san
+skrit, italian, latin, latvian, lithuanian, mongolian2a, mongolian, bokmal, nyn
+orsk, romanian, irish, coptic, serbian, turkish, welsh, esperanto, uppersorbian
+, estonian, indonesian, interlingua, icelandic, kurmanji, slovenian, polish, po
+rtuguese, spanish, galician, catalan, swedish, ukenglish, pinyin, loaded.
+(./acm_proc_article-sp.cls
+(/usr/share/texmf-texlive/tex/latex/graphics/epsfig.sty
+Package: epsfig 1999/02/16 v1.7a (e)psfig emulation (SPQR)
+
+(/usr/share/texmf-texlive/tex/latex/graphics/graphicx.sty
+Package: graphicx 1999/02/16 v1.0f Enhanced LaTeX Graphics (DPC,SPQR)
+
+(/usr/share/texmf-texlive/tex/latex/graphics/keyval.sty
+Package: keyval 1999/03/16 v1.13 key=value parser (DPC)
+\KV@toks@=\toks14
+)
+(/usr/share/texmf-texlive/tex/latex/graphics/graphics.sty
+Package: graphics 2009/02/05 v1.0o Standard LaTeX Graphics (DPC,SPQR)
+
+(/usr/share/texmf-texlive/tex/latex/graphics/trig.sty
+Package: trig 1999/03/16 v1.09 sin cos tan (DPC)
+)
+(/etc/texmf/tex/latex/config/graphics.cfg
+File: graphics.cfg 2009/08/28 v1.8 graphics configuration of TeX Live
+)
+Package graphics Info: Driver file: pdftex.def on input line 91.
+
+(/usr/share/texmf-texlive/tex/latex/pdftex-def/pdftex.def
+File: pdftex.def 2010/03/12 v0.04p Graphics/color for pdfTeX
+\Gread@gobject=\count79
+))
+\Gin@req@height=\dimen102
+\Gin@req@width=\dimen103
+)
+\epsfxsize=\dimen104
+\epsfysize=\dimen105
+)
+(/usr/share/texmf-texlive/tex/latex/amsfonts/amssymb.sty
+Package: amssymb 2009/06/22 v3.00
+
+(/usr/share/texmf-texlive/tex/latex/amsfonts/amsfonts.sty
+Package: amsfonts 2009/06/22 v3.00 Basic AMSFonts support
+\@emptytoks=\toks15
+\symAMSa=\mathgroup4
+\symAMSb=\mathgroup5
+LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 96.
+)) (./amsmath.sty
+Package: amsmath 2000/07/18 v2.13 AMS math features
+\@mathmargin=\skip41
+
+For additional information on amsmath, use the `?' option.
+(/usr/share/texmf-texlive/tex/latex/amsmath/amstext.sty
+Package: amstext 2000/06/29 v2.01
+
+(/usr/share/texmf-texlive/tex/latex/amsmath/amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0
+\@emptytoks=\toks16
+\ex@=\dimen106
+))
+(/usr/share/texmf-texlive/tex/latex/amsmath/amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d
+\pmbraise@=\dimen107
+)
+(/usr/share/texmf-texlive/tex/latex/amsmath/amsopn.sty
+Package: amsopn 1999/12/14 v2.01 operator names
+)
+\inf@bad=\count80
+LaTeX Info: Redefining \frac on input line 211.
+\uproot@=\count81
+\leftroot@=\count82
+LaTeX Info: Redefining \overline on input line 307.
+\classnum@=\count83
+\DOTSCASE@=\count84
+LaTeX Info: Redefining \ldots on input line 379.
+LaTeX Info: Redefining \dots on input line 382.
+LaTeX Info: Redefining \cdots on input line 467.
+\Mathstrutbox@=\box26
+\strutbox@=\box27
+\big@size=\dimen108
+LaTeX Font Info:    Redeclaring font encoding OML on input line 567.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 568.
+\macc@depth=\count85
+\c@MaxMatrixCols=\count86
+\dotsspace@=\muskip10
+\c@parentequation=\count87
+\dspbrk@lvl=\count88
+\tag@help=\toks17
+\row@=\count89
+\column@=\count90
+\maxfields@=\count91
+\andhelp@=\toks18
+\eqnshift@=\dimen109
+\alignsep@=\dimen110
+\tagshift@=\dimen111
+\tagwidth@=\dimen112
+\totwidth@=\dimen113
+\lineht@=\dimen114
+\@envbody=\toks19
+\multlinegap=\skip42
+\multlinetaggap=\skip43
+\mathdisplay@stack=\toks20
+LaTeX Info: Redefining \[ on input line 2666.
+LaTeX Info: Redefining \] on input line 2667.
+)
+Document Class 'acm_proc_article-sp' <22nd. April '09>. Modified by G.K.M. Tobi
+n
+Based in part upon document Style `acmconf' <22 May 89>. Hacked 4/91 by
+shivers@cs.cmu.edu, 4/93 by theobald@cs.mcgill.ca
+Excerpts were taken from (Journal Style) 'esub2acm.cls'.
+****** Bugs/comments/suggestions to Gerry Murray -- murray@hq.acm.org ******
+\footheight=\dimen115
+\@maxsep=\dimen116
+\@dblmaxsep=\dimen117
+\aucount=\count92
+\originalaucount=\count93
+\auwidth=\dimen118
+\auskip=\dimen119
+\auskipcount=\count94
+\auskip=\dimen120
+\allauboxes=\dimen121
+\addauthors=\toks21
+\addauflag=\count95
+\subtitletext=\toks22
+\savesection=\count96
+\sectioncntr=\count97
+\c@figure=\count98
+\c@table=\count99
+\titleboxnotes=\toks23
+\titleboxnoteflag=\count100
+Document Class: acm_proc_article-sp 2009/04/22 - V3.2SP - based on esub2acm.sty
+ <23 April 96>
+(/usr/share/texmf-texlive/tex/latex/base/latexsym.sty
+Package: latexsym 1998/08/17 v2.2e Standard LaTeX package (lasy symbols)
+\symlasy=\mathgroup6
+LaTeX Font Info:    Overwriting symbol font `lasy' in version `bold'
+(Font)                  U/lasy/m/n --> U/lasy/b/n on input line 47.
+)
+\@acmtitlebox=\box28
+\titlenotecount=\count101
+\tntoks=\toks24
+\tntokstwo=\toks25
+\tntoksthree=\toks26
+\tntoksfour=\toks27
+\tntoksfive=\toks28
+\catcount=\count102
+\copyrightnotice=\toks29
+\conf=\toks30
+\confinfo=\toks31
+\c@part=\count103
+\c@section=\count104
+\c@subsection=\count105
+\c@subsubsection=\count106
+\c@paragraph=\count107
+
+Using 'Abbrev' bibliography style
+LaTeX Info: Redefining \cite on input line 1236.
+\bibindent=\dimen122
+\colcntr=\count108
+\saveb@x=\box29
+\copyrtyr=\toks32
+\acmcopyr=\toks33
+\boilerplate=\toks34
+\copyrightetc=\toks35
+(/usr/share/texmf-texlive/tex/latex/base/fontenc.sty
+Package: fontenc 2005/09/27 v1.99g Standard LaTeX package
+
+(/usr/share/texmf-texlive/tex/latex/base/t1enc.def
+File: t1enc.def 2005/09/27 v1.99g Standard LaTeX file
+LaTeX Font Info:    Redeclaring font encoding T1 on input line 43.
+)
+LaTeX Font Info:    Try loading font information for T1+aer on input line 100.
+
+(/usr/share/texmf-texlive/tex/latex/ae/t1aer.fd
+File: t1aer.fd 1997/11/16 Font definitions for T1/aer.
+))) (./algorithm.sty
+
+LaTeX Warning: You have requested package `algorithm',
+               but the package provides `algorithm2e'.
+
+Package: algorithm2e 2008/00/00 v3.10 algorithms environments
+\c@AlgoLine=\count109
+(/usr/share/texmf-texlive/tex/latex/base/ifthen.sty
+Package: ifthen 2001/05/26 v1.1c Standard LaTeX ifthen package (DPC)
+)
+(/usr/share/texmf-texlive/tex/latex/tools/xspace.sty
+Package: xspace 2006/05/08 v1.12 Space after command names (DPC,MH)
+)
+(/usr/share/texmf-texlive/tex/latex/ltxmisc/relsize.sty
+Package: relsize 2003/07/04 ver 3.1
+
+
+Package relsize Warning: Failed to get list of font sizes.
+(relsize)                Falling back to old definition. on input line 81.
+
+)
+********************************************************
+Package `algorithm2e' Release 4.01 -- december 14 2009 --
+- algorithm2e-announce@lirmm.fr mailing list for announcement about releases
+- algorithm2e-discussion@lirmm.fr mailing list for discussion about package
+subscribe by emailing sympa@lirmm.fr with 'subscribe <list> <firstname name>'
+- Author: Christophe Fiorio (fiorio@lirmm.fr)
+********************************************************
+\skiptotal=\skip44
+\skiplinenumber=\skip45
+\skiprule=\skip46
+\skiphlne=\skip47
+\skiptext=\skip48
+\skiplength=\skip49
+\algomargin=\skip50
+\skipalgocfslide=\skip51
+\algowidth=\dimen123
+\inoutsize=\dimen124
+\inoutline=\dimen125
+\interspacetitleruled=\dimen126
+\interspacealgoruled=\dimen127
+\interspacetitleboxruled=\dimen128
+\algocf@inoutbox=\box30
+\algocf@inputbox=\box31
+\AlCapSkip=\skip52
+\AlCapHSkip=\skip53
+\algocf@nlbox=\box32
+\algocf@hangingbox=\box33
+\algocf@capbox=\box34
+\algoheightruledefault=\skip54
+\algoheightrule=\skip55
+\algotitleheightruledefault=\skip56
+\algotitleheightrule=\skip57
+\c@algocfline=\count110
+\c@algocfproc=\count111
+\c@algocf=\count112
+\algocf@algoframe=\box35
+\algocf@algobox=\box36
+) (./algorithmic.sty
+Package: algorithmic 
+
+Document Style `algorithmic' - environment
+(/usr/share/texmf-texlive/tex/latex/tools/calc.sty
+Package: calc 2007/08/22 v4.3 Infix arithmetic (KKT,FJ)
+\calc@Acount=\count113
+\calc@Bcount=\count114
+\calc@Adimen=\dimen129
+\calc@Bdimen=\dimen130
+\calc@Askip=\skip58
+\calc@Bskip=\skip59
+LaTeX Info: Redefining \setlength on input line 76.
+LaTeX Info: Redefining \addtolength on input line 77.
+\calc@Ccount=\count115
+\calc@Cskip=\skip60
+)
+\c@ALC@line=\count116
+\c@ALC@rem=\count117
+\ALC@tlm=\skip61
+)
+(/usr/share/texmf-texlive/tex/latex/tools/enumerate.sty
+Package: enumerate 1999/03/05 v3.00 enumerate extensions (DPC)
+\@enLab=\toks36
+)
+(/usr/share/texmf-texlive/tex/latex/tools/verbatim.sty
+Package: verbatim 2003/08/22 v1.5q LaTeX2e package for verbatim enhancements
+\every@verbatim=\toks37
+\verbatim@line=\toks38
+\verbatim@in@stream=\read1
+) (./recoalgo.aux)
+\openout1 = `recoalgo.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 13.
+LaTeX Font Info:    ... okay on input line 13.
+
+(/usr/share/texmf-texlive/tex/context/base/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+\scratchcounter=\count118
+\scratchdimen=\dimen131
+\scratchbox=\box37
+\nofMPsegments=\count119
+\nofMParguments=\count120
+\everyMPshowfont=\toks39
+\MPscratchCnt=\count121
+\MPscratchDim=\dimen132
+\MPnumerator=\count122
+\everyMPtoPDFconversion=\toks40
+)
+LaTeX Font Info:    Try loading font information for U+msa on input line 45.
+ (/usr/share/texmf-texlive/tex/latex/amsfonts/umsa.fd
+File: umsa.fd 2009/06/22 v3.00 AMS symbols A
+)
+LaTeX Font Info:    Try loading font information for U+msb on input line 45.
+
+(/usr/share/texmf-texlive/tex/latex/amsfonts/umsb.fd
+File: umsb.fd 2009/06/22 v3.00 AMS symbols B
+)
+LaTeX Font Info:    Try loading font information for U+lasy on input line 45.
+
+(/usr/share/texmf-texlive/tex/latex/base/ulasy.fd
+File: ulasy.fd 1998/08/17 v2.2e LaTeX symbol font definitions
+)
+Underfull \hbox (badness 10000) in paragraph at lines 47--50
+
+ []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
+
+
+]
+Overfull \hbox (12.99191pt too wide) in paragraph at lines 94--95
+\T1/aer/m/n/9 dataset, we have used the API ser-vices from \T1/aer/m/it/9 http:
+//imdbapi.org/
+ []
+
+
+Overfull \hbox (10.06085pt too wide) in paragraph at lines 94--95
+\T1/aer/m/n/9 and \T1/aer/m/it/9 http://www.omdbapi.com/\T1/aer/m/n/9 . For ev-
+ery movie in the dataset,
+ []
+
+
+Overfull \hbox (3.15764pt too wide) in paragraph at lines 94--95
+\T1/aer/m/n/9 about the movie. Each movie in the ag-gre-gated movie dataset
+ []
+
+
+Overfull \hbox (2.05013pt too wide) in paragraph at lines 94--95
+\T1/aer/m/n/9 has the fol-low-ing at-tributes: Movie-Lens ID, IMDB ID, IMDB
+ []
+
+[2]
+Overfull \hbox (8.78032pt too wide) in paragraph at lines 98--98
+[]\secfnt PREPARATION OF REF-ER-ENCE STRUC-
+ []
+
+<Results/nodes.png, id=18, 1053.9375pt x 626.34pt>
+File: Results/nodes.png Graphic file (type png)
+ <use Results/nodes.png>
+<Results/LearningComponent.jpg, id=19, 1332.98pt x 1332.98pt>
+File: Results/LearningComponent.jpg Graphic file (type jpg)
+
+<use Results/LearningComponent.jpg> [3 <./Results/nodes.png> <./Results/Learnin
+gComponent.jpg>]
+<Results/attribRelFreq_user.jpg, id=24, 839.135pt x 368.37625pt>
+File: Results/attribRelFreq_user.jpg Graphic file (type jpg)
+
+<use Results/attribRelFreq_user.jpg>
+Overfull \hbox (11.74243pt too wide) in paragraph at lines 211--212
+ [][] 
+ []
+
+<Results/attribRelFreq_items.jpg, id=25, 629.35126pt x 276.28218pt>
+File: Results/attribRelFreq_items.jpg Graphic file (type jpg)
+
+<use Results/attribRelFreq_items.jpg>
+Overfull \hbox (11.73604pt too wide) in paragraph at lines 230--231
+ [][] 
+ []
+
+[4 <./Results/attribRelFreq_user.jpg> <./Results/attribRelFreq_items.jpg>]
+Overfull \hbox (1.4488pt too wide) in paragraph at lines 250--255
+[]$\OML/cmm/m/it/9 Intrscn \OT1/cmr/m/n/9 = [\OML/cmm/m/it/9 a \OMS/cmsy/m/n/9 
+j \OML/cmm/m/it/9 a \OMS/cmsy/m/n/9 2 \OML/cmm/m/it/9 edge attribute of subgrap
+h\OT1/cmr/m/n/9 (\OML/cmm/m/it/9 items of u[]  \OMS/cmsy/m/n/9 \
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 250--255
+
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 250--255
+
+ []
+
+
+Overfull \hbox (29.38548pt too wide) in paragraph at lines 250--255
+\OML/cmm/m/it/9 sim\OT1/cmr/m/n/9 (\OML/cmm/m/it/9 u[]; u[]\OT1/cmr/m/n/9 ) = [
+]$ 
+ []
+
+
+Overfull \hbox (4.02977pt too wide) in paragraph at lines 304--304
+[]\secfnt Clustering the Users for bet-ter Rec-om-men-
+ []
+
+[5]
+Overfull \hbox (2.81781pt too wide) in paragraph at lines 348--348
+[]\secfnt Collaborative Fil-ter-ing based on User Sim-
+ []
+
+
+Overfull \hbox (1.18906pt too wide) in paragraph at lines 385--386
+\T1/aer/m/n/9 next sub-sec-tion, we de-scribe a method to com-bine $\OML/cmm/m/
+it/9 scores[]ego$
+ []
+
+[6]
+Overfull \hbox (4.09375pt too wide) in paragraph at lines 411--413
+\T1/aer/m/n/9 dataset with 1 Mil-lion rat-ings from 6000 users on 4000 movies,
+ []
+
+
+Overfull \hbox (3.71613pt too wide) in paragraph at lines 411--413
+\T1/aer/m/it/9 http://imdbapi.org/ \T1/aer/m/n/9 and \T1/aer/m/it/9 http://www.
+omdbapi.com/\T1/aer/m/n/9 . We split
+ []
+
+
+Overfull \hbox (2.716pt too wide) in paragraph at lines 419--420
+\T1/aer/m/n/9 clas-si-fies rec-om-men-da-tion ac-cu-racy met-rics into three cl
+asses:
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 419--420
+
+ []
+
+
+LaTeX Warning: Reference `movielens_itemGraph' on page \thepage  undefined on i
+nput line 424.
+
+
+Overfull \hbox (22.829pt too wide) in paragraph at lines 435--436
+[]\T1/aer/m/n/9 In sec-tion 5.2[], we cre-ated the pro-files for each user, $\O
+ML/cmm/m/it/9 userProfile[]$\T1/aer/m/n/9 .
+ []
+
+
+<Results/movielens_attrRelFreq_user2987.jpg, id=39, 629.35126pt x 276.28218pt>
+File: Results/movielens_attrRelFreq_user2987.jpg Graphic file (type jpg)
+
+<use Results/movielens_attrRelFreq_user2987.jpg>
+<Results/movielens_attrRelFreq_item.jpg, id=40, 629.35126pt x 277.035pt>
+File: Results/movielens_attrRelFreq_item.jpg Graphic file (type jpg)
+
+<use Results/movielens_attrRelFreq_item.jpg> [7 <./Results/movielens_attrRelFre
+q_user2987.jpg>]
+File: Results/LearningComponent.jpg Graphic file (type jpg)
+ <use Results/LearningComponent.jpg>
+Underfull \hbox (badness 10000) in paragraph at lines 489--490
+
+ []
+
+(./recoalgo.bbl [8 <./Results/movielens_attrRelFreq_item.jpg>]) [9
+
+]
+(./recoalgo.aux)
+
+LaTeX Warning: There were undefined references.
+
+ ) 
+Here is how much of TeX's memory you used:
+ 3617 strings out of 493848
+ 43858 string characters out of 1152823
+ 125763 words of memory out of 3000000
+ 6832 multiletter control sequences out of 15000+50000
+ 50309 words of font info for 66 fonts, out of 3000000 for 9000
+ 714 hyphenation exceptions out of 8191
+ 39i,13n,28p,1064b,751s stack positions out of 5000i,500n,10000p,200000b,50000s
+{/usr/share/texmf-texlive/fonts/enc/dvips/base/8r.enc}</usr/share/texmf-texli
+ve/fonts/type1/public/amsfonts/cm/cmbx9.pfb></usr/share/texmf-texlive/fonts/typ
+e1/public/amsfonts/cmextra/cmex7.pfb></usr/share/texmf-texlive/fonts/type1/publ
+ic/amsfonts/cm/cmmi5.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/
+cm/cmmi6.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/cmmi9.pfb
+></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/
+texmf-texlive/fonts/type1/public/amsfonts/cm/cmr6.pfb></usr/share/texmf-texlive
+/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/share/texmf-texlive/fonts/type1/
+public/amsfonts/cm/cmsy5.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfo
+nts/cm/cmsy6.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/cmsy9
+.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/cmti9.pfb></usr/s
+hare/texmf-texlive/fonts/type1/urw/helvetic/uhvb8a.pfb></usr/share/texmf-texliv
+e/fonts/type1/urw/helvetic/uhvr8a.pfb></usr/share/texmf-texlive/fonts/type1/urw
+/times/utmb8a.pfb>
+Output written on recoalgo.pdf (9 pages, 1040007 bytes).
+PDF statistics:
+ 99 PDF objects out of 1000 (max. 8388607)
+ 0 named destinations out of 1000 (max. 500000)
+ 31 words of extra memory for PDF output out of 10000 (max. 10000000)
+
