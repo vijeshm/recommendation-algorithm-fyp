@@ -1,11 +1,10 @@
 import json
 
 fin = open("movieInfo.dat", "r")
-fout = open("movielens", "w")
+fout = open("movielens_10m", "w")
 
 count = 1
 for line in fin:
-    print count
     jsonObj = json.loads(line)
     out = {}
     out["movielens_id"] = [count]
@@ -16,7 +15,6 @@ for line in fin:
             elif key=="rating" or key=="rated" or key=="title" or key=="rating_count" or key=="year" or key=="type":
                 out[key] = [jsonObj[key]]
             else:
-                print key
                 out[key] = jsonObj[key]
     count += 1
     #print type(json.dumps(out))

@@ -909,7 +909,9 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
 
     #load the userSequence onto an object
     f = open(dbFileName + "_userData_trainset.json", "r")
-    userSequence = json.loads(f.read())
+    userSequence = {}
+    for line in f:
+        userSequence.update(json.loads(line))  
     f.close()
 
     #userSequence = dict(random.sample(userSequence.items(),500))

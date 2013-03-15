@@ -12,7 +12,9 @@ userData_trainset = open("movielens_userData_trainset.json", "w")
 userData_testset = open("movielens_userData_testset.json", "w")
 
 print "reading userData"
-userSequence = json.loads(userData.read())
+userSequence = {}
+for line in f:
+    userSequence.update(json.loads(line))  
 print "done reading userData"
 
 train = {}
@@ -24,8 +26,11 @@ for user in userSequence:
     train[user] = userSequence[user][:partition]
     test[user] = userSequence[user][partition:]
 
-userData_trainset.write(json.dumps(train))
-userData_testset.write(json.dumps(test))
+for user in train:
+    userData_trainset.write(json.dumps(train[user]))
+
+for user in test:
+    userData_testset.write(json.dumps(test[user]))
 
 userData_trainset.close()
 userData_testset.close()
