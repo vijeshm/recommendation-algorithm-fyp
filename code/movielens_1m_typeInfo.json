@@ -1,0 +1,1 @@
+{"rating": "float", "genres": "string", "rated": "string", "language": "string", "title": "string", "country": "string", "imdb_id": "string", "directors": "string", "writers": "string", "actors": "string", "year": "integer", "type": "string", "id": "string", "rating_count": "integer"}

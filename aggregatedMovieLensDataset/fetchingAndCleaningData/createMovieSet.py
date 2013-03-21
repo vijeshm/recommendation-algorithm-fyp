@@ -8,7 +8,7 @@ movieList = {}
 
 for line in fin:
     jsonObj = json.loads(line)
-    movieList[jsonObj["movielens_id"][0]] = jsonObj
+    movieList[jsonObj["id"][0]] = jsonObj
 
 for line in websiteList:
     data = line.split("::")

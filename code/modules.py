@@ -16,6 +16,9 @@ import time
 import re
 import sys
 import numpy
+import itertools
+from multiprocessing import Process, Queue
+import fileinput
 
 # Third party libraries
 import networkx as nx
@@ -37,11 +40,15 @@ def learnGraph(JSONdb):
     '''
     JSONdb (string) - file name of the db - a file of strings, each of which are in JSON format
     Given a database of items, this function generates the item relations graph that can be used to for recommending items to users in a content based manner.
-    '''
+    ''' 
 
     #open the file, read each line, parse it and put it onto the itemList
     itemList = []
     fp = open(JSONdb, "r")
+    f = open(JSONdb + "_typeInfo.json", "w")
+    f.write(fp.readline())
+    f.close()
+
     for line in fp:
         itemList.append(json.loads(line))
     fp.close()
@@ -50,21 +57,18 @@ def learnGraph(JSONdb):
 
     #Building the graph
     G = nx.Graph()
-
-    count = 0
     for item in itemList:
-        count += 1
-        print count
-        uid = int(item['movielens_id'][0])
+        uid = str(item['id'][0])
         #print uid
         commonProps = {} #{node1 : {attr1 : value1, attr2 : value2 ... }, node2 ... } represents the edge between given node and node1, with the edge attribute being {attr1 : value1, attr2 : value2 ...}
 
-        G.add_node(uid) #each node is recognized by its unique ID, an integer.
+        G.add_node(uid) #each node is recognized by its unique ID, a string.
+        G.add_edge(uid, uid)
+
+        #set the attribute of the item as the attribute of the node
+        G[uid][uid] = item
 
         for attrs in item:
-            #set the attribute of the item as the attribute of the node
-            G[uid][attrs] = item[attrs]
-
             #check if the node already has the attribute.
             #If it does, for every attribute of the item, check if there is a list associated for the value. If the list exists, append the uid to the list. If it doesnt, initialize a list with the uid of the item.
             #If it doesnt, initialize the attributeAndNodes[attrs] to an empty dictionary. For every attribute of the item, update the attributeAndNodes dictionary.
@@ -76,36 +80,43 @@ def learnGraph(JSONdb):
                         attributeAndNodes[attrs][attribute] = [uid]
             else:
                 attributeAndNodes[attrs] = {}
-                print item
                 for attribute in item[attrs]:
                     #print attrs
                     #print attribute
                     attributeAndNodes[attrs][attribute] = [uid]
 
-            #setting up links between items
-            #for each attribute of the item, find out which nodes have the same attribute and value. These nodes become the item's neighbors and we put an edge between them.
-            for attribute in item[attrs]:
-                itemConnections = attributeAndNodes[attrs][attribute]
+    print "generating graph.."
+    for attrs in attributeAndNodes:
+        for attribute in attributeAndNodes[attrs]:
+            edgeGen =  itertools.combinations(attributeAndNodes[attrs][attribute],2)
+            try :
+                while True : 
+                    edge = edgeGen.next()
+                    G.add_edge(edge[0],edge[1])
+                    if G[edge[0]][edge[1]].has_key(attrs):
+                        G[edge[0]][edge[1]][attrs].append(attribute)
+                    else :
+                        G[edge[0]][edge[1]][attrs]=[attribute]
+            except StopIteration:
+                pass
+    print "done generating graph.."
 
-                for itemNeighbor in itemConnections:
-                    if itemNeighbor != uid:
-                        commonProps[itemNeighbor] = {}
-                        if commonProps[itemNeighbor].has_key(attrs):
-                            commonProps[itemNeighbor][attrs].append(attribute)
-                        else:
-                            commonProps[itemNeighbor][attrs] = [attribute]
+    print "writing " + JSONdb + "_keyValueNodes.json"
+    f = open(JSONdb + "_keyValueNodes.json", "w")
+    f.write(json.dumps(attributeAndNodes))
+    f.close()
+    print "done writing " + JSONdb + "_keyValueNodes.json"
 
-            #adding edges from current node to other nodes.
-            for node in commonProps:
-                #print uid, node, commonProps[node]
-                #raw_input()
-                G.add_edge(node, uid)
-                G[node][uid] = commonProps[node]
+    print "writing " + JSONdb + "_GraphDB.edgelist"
+    fout = open(JSONdb + "_GraphDB.edgelist", "w")
+    for node in G.nodes():
+        for key in G[node]:
+            fout.write(node + " " + key + " " + str(G[node][key]) + "\n")
+    fout.close()
+    print "done writing " + JSONdb + "_GraphDB.edgelist"
+    
 
-        #uid += 1
-
-    print "writing.."
-    nx.write_gpickle(G, JSONdb + "_GraphDB.gpickle")
+    #nx.write_edgelist(G, JSONdb + "_GraphDB.edgelist")
     #write the object onto a pickle file
     #fp = open(JSONdb + "_GraphDB.pickle", "w")
     #print "creating pickle string"
@@ -575,144 +586,6 @@ def createUserData(graphDB, alpha, numberOfUsers, threshold, maxItems, dbFileNam
     fp.write(pickle.dumps(userData))
     fp.close()
 
-def main():
-    dbFileName = ""
-    for arg in sys.argv:
-        if re.match("--db=",arg):
-            dbFileName = arg.split("=")[1]
-    if not dbFileName:
-        print "please specify the database name"
-        exit()
-
-    userSequence = ""
-    for arg in sys.argv:
-        if re.match("--usageData=",arg):
-            userSequence = arg.split("=")[1]
-    if not userSequence:
-        print "please specify the usagedata file name"
-        exit()
-
-    if "-buildGraph" in sys.argv:
-        #print "have to build graph"
-        
-        #in case the graph isnt availble, write the learnt graph into a file called GraphDB.pickle
-        #comment this out when you already have a learnt graph
-        print "building graph from", dbFileName
-        learnGraph(dbFileName)
-        print "done with building graph.."
-        
-        
-    #load the graph onto an object
-    G = readEdgeList(dbFileName + "_GraphDB.gpickle")
-    print G.number_of_nodes()
-
-    for arg in sys.argv:
-        if re.match("-generateSequence=",arg):
-            print "generating user sequence.."
-            config = arg.split("=")[1].split(",")
-            numberOfUsers = int(config[0])
-            threshold = int(config[1])
-            maxItems = int(config[2])
-            alpha = float(config[3])
-            
-            #in case the userSequence is not available, simulate it synthetically using the graph. The sequences are written to a file called userSequence.pickle
-            print "\ncreating synthetic user sequences.."
-
-            createUserData(G, alpha, numberOfUsers, threshold, maxItems, dbFileName)
-            print "done creating synthetic user sequences.."
-
-    #load the userSequence onto an object
-    f = open(dbFileName + "_userData.json", "r")
-    userSequence = json.loads(f.read())
-    f.close()
-
-    if "-userProfiles" in sys.argv:
-        #print "have to create userProfiles"
-        
-        #each user is associated with his/her own alpha and the attribute importance list
-        print "\ncreating userProfiles.."
-        userProfiles = {}
-        count = 0
-        numOfUsers = len(userSequence)
-        for sequence in userSequence:
-            # initializing alpha and weight vector to each user
-            print "percentage completion: ", count / float(numOfUsers), count
-	    count += 1
-            userProfiles[sequence] = {}
-            userProfiles[sequence]["alpha"] = 0.5
-            userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
-            tweakWeights(G, userProfiles[sequence], userSequence[sequence])
-            normalizeWeights(userProfiles[sequence])
-
-        f = open(dbFileName + "_userProfiles.pickle", "w")
-        f.write(pickle.dumps(userProfiles))
-        f.close()
-        print "done creating userProfiles.."
-        
-
-    #load the userProfiles onto an object
-    f = open(dbFileName + "_userProfiles.pickle", "r")
-    userProfiles = pickle.loads(f.read())
-    f.close()
-
-    if "-reduceDimensions" in sys.argv:
-        #print "have to reduce dimensions"
-        
-        #Dimensionality Reduction
-        #find out the relative importance of the attributes, by considering the attribute's relative importance from all users. write the file to attributeRelativeImportance.pickle
-        print "\nreducing dimensions"
-        attributeRelativeImportance(dbFileName)
-        print "done reducing dimensions"
-        
-
-    for arg in sys.argv:
-        if re.match("-userSimilarity=", arg):
-            #print "have to compute user similarity"
-            upperlim = int(arg.split("=")[1])
-
-            print "building user similarity"
-            buildUserSimilarityDict(G, userSequence, userProfiles, dbFileName, upperlim)
-            print "done building user similarity"
-
-    f = open(dbFileName + "_userSimilarity.pickle", "r")
-    userSimilarity = pickle.loads(f.read())
-    f.close()
-
-    for arg in sys.argv:
-        if re.match("-formClusters=", arg):
-            #print "have to form clusters"
-            threshold = float(arg.split("=")[1])
-        
-            print "forming clusters.."
-            formClustersFn(userSimilarity, threshold, dbFileName)
-            print "done forming clusters.."
-
-    f = open(dbFileName + "_clusters.pickle", "r")
-    clusters = pickle.loads(f.read())
-    f.close()
-
-    uid = ""
-    for arg in sys.argv:
-        if re.match("-uid=",arg):
-            print "have to recommend using uid"
-            uid = int(arg.split("=")[1])
-
-    if uid:
-        print "List of movies that the user", uid, "has watched: "
-        print [G[itemId]["title"][0] for itemId, rating in userSequence[uid]]
-
-        print "\ngetting egocentric recommendation for user ID", uid
-        #get the egocentric recommendation, and write it onto a file called contentReco.pickle
-        egocentricRecommendation(G, userSequence[uid], dbFileName, uid)
-        print "done with egocentric recommendation for user ID", uid, "\n"
-
-        print "\ngetting collaborative recommendation for user ID", uid
-        collaborativeRecommend(uid, G, clusters, userSequence, userSimilarity, dbFileName)
-        print "done with collaborative recommendation for user ID", uid, "\n"
-
-        #using contentReco.pickle and collabReco.pickle, generate a combined rank list and write it onto combinedReco.pickle
-        combineLists(G, userProfiles[uid]["alpha"], uid, userSequence[uid], dbFileName)
-
 def tweakAlpha(userProfile):
     """
         tweak alpha... [will be extended in future but currenlty NO changes are being made]
@@ -743,6 +616,11 @@ def tweakWeights(G, userProfile, itemSequence):
             #print H[node][neighbor]
             #raw_input("dbg5")
             for attrib in H[node][neighbor]:
+                if userProfile["values"].has_key(attrib):
+                    userProfile["values"][attrib].extend(H[node][neighbor][attrib])
+                else:
+                    userProfile["values"][attrib] = H[node][neighbor][attrib]
+
                 numOfCommonAttribs = len(H[node][neighbor][attrib])
                 if userProfile["weights"].has_key(attrib):
                     userProfile["weights"][attrib] += 1
@@ -753,6 +631,9 @@ def tweakWeights(G, userProfile, itemSequence):
 
                 #print userProfile["weights"]
                 #raw_input("dbg6")
+
+        for attrib in userProfile["values"]:
+            userProfile["values"][attrib] = list(set(userProfile["values"][attrib]))
     #we still have to normalize the weights, which is done after the function returns
 
 def getEdges(G):
@@ -853,18 +734,52 @@ def attributeRelativeImportance(dbFileName):
 #os.system("python modules.py --db=movielens --usageData=movielens_userData.json -userProfiles -reduceDimensions -userSimilarity=6040 -formClusters=0.8")
 
 def readEdgeList(fileName):
-    f = open("movielens_GraphDB.edgelist", "r")
+    #This part of the code is NOT functional. It gives a memoryError. (no mem for new parser - who knows what it means?)
     G = nx.Graph()
-    for line in f:
-        data = line.split(' ')
-        src = data[0]
-        dstn = data[1]
-        attribute = string.join(data[2:], ' ')
-
-        G.add_node(src)
-        G[src][dstn] = eval(attribute)
-    f.close()
+    for line in fileinput.input(fileName):
+        i = line.find(' ')
+        j = line.find(' ',i+1)
+        try :
+          node1 = line[:i]
+          node2 = line[i+1:j]
+          Weight = eval(line[j+1:])
+          G.add_edge(node1,node2,Weight)
+        except :
+          print line
+          print "gone"
+        del Weight
+        del node1
+        del node2
     return G
+
+def readKeyValueNodes(fileName):
+    f = open(fileName, "r")
+    keyValueNodes = json.loads(f.read())
+    f.close()
+
+    print "generating graph.."
+    G = nx.Graph()
+    for attrs in keyValueNodes:
+        for attribute in keyValueNodes[attrs]:
+            edgeGen =  itertools.combinations(keyValueNodes[attrs][attribute],2)
+            try :
+                while True : 
+                    edge = edgeGen.next()
+                    G.add_edge(edge[0],edge[1])
+                    if G[edge[0]][edge[1]].has_key(attrs):
+                        G[edge[0]][edge[1]][attrs].append(attribute)
+                    else :
+                        G[edge[0]][edge[1]][attrs]=[attribute]
+            except StopIteration:
+                pass
+    print "done generating graph.."
+    return G
+
+def readTypeInfo(fileName):
+    f = open(fileName, "r")
+    datatype = json.loads(f.read())
+    f.close()
+    return datatype
 
 def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
     dbFileName = ""
@@ -889,10 +804,16 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         print "building graph from", dbFileName
         learnGraph(dbFileName)
         print "done with building graph.."
-        
+
+    #load the type Info into an object
+    datatype = readTypeInfo(dbFileName + "_typeInfo.json")
         
     #load the graph onto an object
-    G = readEdgeList(dbFileName + "_GraphDB.gpickle")
+    G = readKeyValueNodes(dbFileName + "_keyValueNodes.json")
+
+    '''
+    debug from here
+    '''
     
     if generateSequence:
         print "generating user sequence.."
@@ -933,6 +854,7 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
+            userProfiles[sequence]["values"] = {}
             tweakWeights(G, userProfiles[sequence], userSequence[sequence])
             #print userProfiles[sequence]
             #raw_input("dbg1")

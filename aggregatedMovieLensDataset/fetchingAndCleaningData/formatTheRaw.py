@@ -7,12 +7,12 @@ count = 1
 for line in fin:
     jsonObj = json.loads(line)
     out = {}
-    out["movielens_id"] = [count]
+    out["id"] = [count]
     for key in jsonObj:
         if key!="poster" and key!="imdb_url" and key!="plot_simple" and key!="runtime" and key!="release_date" and key!="also_known_as" and key!="episodes":
             if key=="filming_locations":
                 out[key] = jsonObj[key].replace(" ", "").split(",")
-            elif key=="rating" or key=="rated" or key=="title" or key=="rating_count" or key=="year" or key=="type":
+            elif key=="rating" or key=="rated" or key=="title" or key=="rating_count" or key=="year" or key=="type" or key=="imdb_id":
                 out[key] = [jsonObj[key]]
             else:
                 out[key] = jsonObj[key]
