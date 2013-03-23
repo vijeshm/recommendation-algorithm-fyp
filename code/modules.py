@@ -19,6 +19,7 @@ import numpy
 import itertools
 from multiprocessing import Process, Queue
 import fileinput
+import gc
 
 # Third party libraries
 import networkx as nx
@@ -36,7 +37,7 @@ def getRealNeighbors(noisyList):
 
     return tempList
 
-def learnGraph(JSONdb):
+def learnGraph(JSONdb, edgeList=False):
     '''
     JSONdb (string) - file name of the db - a file of strings, each of which are in JSON format
     Given a database of items, this function generates the item relations graph that can be used to for recommending items to users in a content based manner.
@@ -46,7 +47,8 @@ def learnGraph(JSONdb):
     itemList = []
     fp = open(JSONdb, "r")
     f = open(JSONdb + "_typeInfo.json", "w")
-    f.write(fp.readline())
+    typeInfo = json.loads(fp.readline())
+    f.write(json.dumps(typeInfo))
     f.close()
 
     for line in fp:
@@ -85,20 +87,46 @@ def learnGraph(JSONdb):
                     #print attribute
                     attributeAndNodes[attrs][attribute] = [uid]
 
+
+    enumAttr = dict([ (attr, "@"+str(enum)) for enum, attr in list(enumerate(attributeAndNodes.keys())) ])
+    enumValues = {}
+    for attr in attributeAndNodes:
+        if typeInfo[attr] == "string" and attr !="id" : 
+            #we enumerate only those attributes which takes string values.
+            enumValues[attr] = dict([ (attribute, "#"+str(enum)) for enum, attribute in list(enumerate(attributeAndNodes[attr].keys())) ])
+
+    enum = {}
+    enum["attrs"] = enumAttr
+    enum["values"] = enumValues
+    
     print "generating graph.."
     for attrs in attributeAndNodes:
-        for attribute in attributeAndNodes[attrs]:
-            edgeGen =  itertools.combinations(attributeAndNodes[attrs][attribute],2)
-            try :
-                while True : 
-                    edge = edgeGen.next()
-                    G.add_edge(edge[0],edge[1])
-                    if G[edge[0]][edge[1]].has_key(attrs):
-                        G[edge[0]][edge[1]][attrs].append(attribute)
-                    else :
-                        G[edge[0]][edge[1]][attrs]=[attribute]
-            except StopIteration:
-                pass
+        if typeInfo[attrs] == "string":            
+            for attribute in attributeAndNodes[attrs]:
+                edgeGen =  itertools.combinations(attributeAndNodes[attrs][attribute],2)
+                try :
+                    while True : 
+                        edge = edgeGen.next()
+                        G.add_edge(edge[0],edge[1])
+                        if G[edge[0]][edge[1]].has_key(enum["attrs"][attrs]):
+                                G[edge[0]][edge[1]][enum["attrs"][attrs]].append(enum["values"][attrs][attribute])
+                        else :
+                            G[edge[0]][edge[1]][enum["attrs"][attrs]]=[enum["values"][attrs][attribute]]
+                except StopIteration:
+                    pass
+        else :
+            for attribute in attributeAndNodes[attrs]:
+                edgeGen =  itertools.combinations(attributeAndNodes[attrs][attribute],2)
+                try :
+                    while True : 
+                        edge = edgeGen.next()
+                        G.add_edge(edge[0],edge[1])
+                        if G[edge[0]][edge[1]].has_key(attrs):
+                           G[edge[0]][edge[1]][attrs].append(attribute)
+                        else :
+                           G[edge[0]][edge[1]][attrs]=[attribute]
+                except StopIteration:
+                   pass
     print "done generating graph.."
 
     print "writing " + JSONdb + "_keyValueNodes.json"
@@ -107,15 +135,22 @@ def learnGraph(JSONdb):
     f.close()
     print "done writing " + JSONdb + "_keyValueNodes.json"
 
-    print "writing " + JSONdb + "_GraphDB.edgelist"
-    fout = open(JSONdb + "_GraphDB.edgelist", "w")
-    for node in G.nodes():
-        for key in G[node]:
-            fout.write(node + " " + key + " " + str(G[node][key]) + "\n")
-    fout.close()
-    print "done writing " + JSONdb + "_GraphDB.edgelist"
-    
+    print "writing " + JSONdb + "_enumeration.json"
+    f = open(JSONdb + "_enumeration.json", "w")
+    f.write(json.dumps(enum))
+    f.close()
+    print "done writing " + JSONdb + "_enumeration.json"
 
+    if edgeList:
+        print "writing " + JSONdb + "_GraphDB.edgelist"
+        fout = open(JSONdb + "_GraphDB.edgelist", "w")
+        for node in G.nodes():
+            for key in G[node]:
+                fout.write(node + " " + key + " " + str(G[node][key]) + "\n")
+        fout.close()
+        print "done writing " + JSONdb + "_GraphDB.edgelist"
+    
+    return G
     #nx.write_edgelist(G, JSONdb + "_GraphDB.edgelist")
     #write the object onto a pickle file
     #fp = open(JSONdb + "_GraphDB.pickle", "w")
@@ -124,16 +159,6 @@ def learnGraph(JSONdb):
     #print "writing to file"
     #fp.write(pickleStr)
     #fp.close()
-
-def learnPowerMethod(USERdb):
-    '''
-    USERdb (string) - file name of the db - a file of strings, each of which are in JSON format
-    Given a database and user-item associations, this function builds a collaborative data structure that can be used in collaborative filtering.
-
-    '''
-    fp = open("_powerMethod.pickle", "w")
-    #fp.write(pickle.dumps(_powerMethod))
-    fp.close()
 
 def egocentricRecommendation(graphDb, userSequence, dbFileName, uid):
     '''
@@ -604,36 +629,20 @@ def tweakWeights(G, userProfile, itemSequence):
 
     #G.subgraph() function removes the attributes of the node. Since we do not want that to happen, I've written a function that does it. I couldnt figure out a networkx alternative which might be more efficient.
     H = getSubgraph(G, items)
-    #print H.nodes()
-    #raw_input("dbg3")
     #get the relative weights of the user towards each attribute
     for node in H.nodes():
         neighbors = getRealNeighbors(H.neighbors(node)) #to chuck the node's attributes and get only the actual neighbors
-        #print neighbors
-        #raw_input("dbg4")
         for neighbor in neighbors: #scores must be updated for each individual neighbor. This would also mean that the weights would be added twice. But that wouldnt be a problem since we're normalizing it later on.
             #the weight for each attribute must be computed. Hence iterate through the edge attributes, find out the number of common attribute-value pairs for each attribute. If the userProfiles have been updated for the first time, initialize it with the formula. If the attribute has already been updated once, then increment the weights correspondingly.
-            #print H[node][neighbor]
-            #raw_input("dbg5")
             for attrib in H[node][neighbor]:
-                if userProfile["values"].has_key(attrib):
-                    userProfile["values"][attrib].extend(H[node][neighbor][attrib])
-                else:
-                    userProfile["values"][attrib] = H[node][neighbor][attrib]
-
                 numOfCommonAttribs = len(H[node][neighbor][attrib])
                 if userProfile["weights"].has_key(attrib):
-                    userProfile["weights"][attrib] += 1
+                    userProfile["weights"][attrib] += numOfCommonAttribs
                     #userProfile["weights"][attrib] += numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
                 else:
-                    userProfile["weights"][attrib] = 1
+                    userProfile["weights"][attrib] = numOfCommonAttribs
                     #userProfile["weights"][attrib] = numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
 
-                #print userProfile["weights"]
-                #raw_input("dbg6")
-
-        for attrib in userProfile["values"]:
-            userProfile["values"][attrib] = list(set(userProfile["values"][attrib]))
     #we still have to normalize the weights, which is done after the function returns
 
 def getEdges(G):
@@ -662,14 +671,23 @@ def getSubgraph(G, items):
                 H[node][attrib] = G[node][attrib]
     return H
 
-def normalizeWeights(userProfile):
+def normalizeWeights(userProfiles, keyValueNodes):
     """
-        userProfile (dictionary) : contains 2 keys, alpha and weights
+        userProfiles (dictionary) : contains userProfiles each containing 2 keys, alpha and weights
+        keyValueNodes 
         Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
     """
-    sumOfWeights = sum(userProfile["weights"].values())
-    for attr in userProfile["weights"]:
-        userProfile["weights"][attr] /= float(sumOfWeights)
+    attribRange = dict([(key, len(keyValueNodes[key])) for key in keyValueNodes])
+    #compute the range of values for categorical and non-categorical attributes
+
+    for profile in userProfiles:
+        for attrib in userProfiles[profile]["weights"]:
+            userProfiles[profile]["weights"][attrib] *= attribRange[attrib]
+
+    for profile in userProfiles:
+        sumOfWeights = float(sum(userProfiles[profile]["weights"].values()))
+        for attr in userProfiles[profile]["weights"]:
+            userProfiles[profile]["weights"][attr] /= sumOfWeights
 
 def attributeRelativeImportance(dbFileName):
     """
@@ -752,27 +770,35 @@ def readEdgeList(fileName):
         del node2
     return G
 
-def readKeyValueNodes(fileName):
-    f = open(fileName, "r")
-    keyValueNodes = json.loads(f.read())
-    f.close()
-
-    print "generating graph.."
+def constructGraph(keyValueNodes, enum, datatype):
     G = nx.Graph()
     for attrs in keyValueNodes:
-        for attribute in keyValueNodes[attrs]:
-            edgeGen =  itertools.combinations(keyValueNodes[attrs][attribute],2)
-            try :
-                while True : 
-                    edge = edgeGen.next()
-                    G.add_edge(edge[0],edge[1])
-                    if G[edge[0]][edge[1]].has_key(attrs):
-                        G[edge[0]][edge[1]][attrs].append(attribute)
-                    else :
-                        G[edge[0]][edge[1]][attrs]=[attribute]
-            except StopIteration:
-                pass
-    print "done generating graph.."
+        if datatype[attrs] == "string":
+            for attribute in keyValueNodes[attrs]:
+                edgeGen =  itertools.combinations(keyValueNodes[attrs][attribute],2)
+                try :
+                    while True :
+                        edge = edgeGen.next()
+                        G.add_edge(edge[0],edge[1])
+                        if G[edge[0]][edge[1]].has_key(enum["attrs"][attrs]):
+                            G[edge[0]][edge[1]][enum["attrs"][attrs]].append(enum["values"][attrs][attribute])
+                        else :
+                            G[edge[0]][edge[1]][enum["attrs"][attrs]]=[enum["values"][attrs][attribute]]
+                except StopIteration:
+                    pass
+        else:
+            for attribute in keyValueNodes[attrs]:
+                edgeGen =  itertools.combinations(keyValueNodes[attrs][attribute],2)
+                try :
+                    while True :
+                        edge = edgeGen.next()
+                        G.add_edge(edge[0],edge[1])
+                        if G[edge[0]][edge[1]].has_key(attrs):
+                            G[edge[0]][edge[1]][attrs].append(attribute)
+                        else :
+                            G[edge[0]][edge[1]][attrs]=[attribute]
+                except StopIteration:
+                    pass
     return G
 
 def readTypeInfo(fileName):
@@ -780,6 +806,18 @@ def readTypeInfo(fileName):
     datatype = json.loads(f.read())
     f.close()
     return datatype
+
+def readKeyValueNodes(fileName):
+    f = open(fileName, "r")
+    keyValueNodes = json.loads(f.read())
+    f.close()
+    return keyValueNodes
+
+def readEnumerations(fileName):
+    f = open(fileName, "r")
+    enum = json.loads(f.read())
+    f.close()
+    return enum
 
 def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
     dbFileName = ""
@@ -797,23 +835,41 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         exit()
 
     if buildGraph:
-        #print "have to build graph"
-        
+        #print "have to build graph"        
         #in case the graph isnt availble, write the learnt graph into a file called GraphDB.pickle
         #comment this out when you already have a learnt graph
         print "building graph from", dbFileName
-        learnGraph(dbFileName)
+        learnGraph(dbFileName, edgeList=False)
         print "done with building graph.."
-
+        
     #load the type Info into an object
     datatype = readTypeInfo(dbFileName + "_typeInfo.json")
+
+    #load the key, value and nodes
+    keyValueNodes = readKeyValueNodes(dbFileName + "_keyValueNodes.json")
+
+    #load the enumerations
+    enum = readEnumerations(dbFileName + "_enumeration.json")
         
     #load the graph onto an object
-    G = readKeyValueNodes(dbFileName + "_keyValueNodes.json")
+    print "reading Graph"
+    G = constructGraph(keyValueNodes, enum, datatype)
+    print "done reading Graph"
 
-    '''
-    debug from here
-    '''
+    # load the userSequence onto an object
+    print "reading usage data"
+    #f = open(usageData, "r")
+    print "dbg1"
+    userSequence = {}
+    count = 0
+    for line in fileinput.input(usageData):
+        count += 1
+        print count
+        jsonUser = json.loads(line)
+        userSequence.update(jsonUser)
+    #f.close()
+    # userSequence = dict(random.sample(userSequence.items(),500))
+    print "done using reading usage data"
     
     if generateSequence:
         print "generating user sequence.."
@@ -828,40 +884,23 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         createUserData(G, alpha, numberOfUsers, threshold, maxItems, dbFileName)
         print "done creating synthetic user sequences.."
 
-    #load the userSequence onto an object
-    f = open(dbFileName + "_userData_trainset.json", "r")
-    userSequence = {}
-    for line in f:
-        userSequence.update(json.loads(line))  
-    f.close()
-
-    #userSequence = dict(random.sample(userSequence.items(),500))
-    #print userSequence
-    #raw_input("dbg13")
-
     if userProfiles:
-        #print "have to create userProfiles"
-        
-        #each user is associated with his/her own alpha and the attribute importance list
+        # each user is associated with his/her own alpha and the attribute importance list
         print "\ncreating userProfiles.."
         userProfiles = {}
         count = 0
         numOfUsers = len(userSequence)
         for sequence in userSequence:
-            # initializing alpha and weight vector to each user
+            # initializing alpha, weight vector to each user
             print "percentage completion: ", count / float(numOfUsers), count
-	    count += 1
+            count += 1
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
-            userProfiles[sequence]["values"] = {}
             tweakWeights(G, userProfiles[sequence], userSequence[sequence])
-            #print userProfiles[sequence]
-            #raw_input("dbg1")
-            normalizeWeights(userProfiles[sequence])
-            #print userProfiles[sequence]
-            #raw_input("dbg2")
 
+        normalizeWeights(userSequence, keyValueNodes)
+            
         f = open(dbFileName + "_userProfiles.pickle", "w")
         f.write(pickle.dumps(userProfiles))
         f.close()
@@ -992,5 +1031,5 @@ def mae(db=None, testData=None):
     mae = float(errors) / count
     return mae
 
-#if __name__ == "__main__":
-#    main()
+if __name__ == "__main__":
+    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", userProfiles=True)
