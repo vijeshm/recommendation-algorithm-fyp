@@ -646,32 +646,46 @@ def clustersByKMeans(inp, numOfClusters):
     retVal = retVal.values()
     return retVal
 
+
+def functionVijay(inp,numOfCluster):
+    mIntra = 0
+    n = len(inp)
+    clusters = clustersByKMeans(inp, numOfCluster)
+    clusters = [cluster for cluster in clusters if cluster != []]
+    for cluster in clusters:
+        centroid = numpy.average(cluster)
+        for member in cluster:
+            mIntra += pow(member - centroid, 2)
+    mIntra /= n
+
+    centroids = [numpy.average(cluster) for cluster in clusters]
+    mInterList = []
+    for i in range(len(centroids)):
+        for j in range(i+1, len(centroids)):
+            mInterList.append( pow(centroids[i] - centroids[j], 2) )
+    mInter = min(mInterList)
+    return (mIntra/mInter,numOfCluster)
+
+def functionVijayMain(Qu,inp,numOfCluster):
+    Qu.put(functionVijay(inp,numOfCluster))
+
 def optimumClusters(inp):
     numOfClusters = range(2, len(inp))
-
     n = len(inp)
     v = []
+    Qu = Queue()
+    Procs = []
+
     for numOfCluster in numOfClusters:
-        sys.stdout.write('\b'*10)
-        sys.stdout.write(str(numOfCluster))
+        Procs.append(Process(target=functionVijayMain, args=(Qu,inp,numOfCluster)))
 
-        mIntra = 0
-        clusters = clustersByKMeans(inp, numOfCluster)
-        clusters = [cluster for cluster in clusters if cluster != []]
-        for cluster in clusters:
-            centroid = numpy.average(cluster)
-            for member in cluster:
-                mIntra += pow(member - centroid, 2)
-        mIntra /= n
+    for pro in Procs:
+        pro.start()
 
-        centroids = [numpy.average(cluster) for cluster in clusters]
-        mInterList = []
-        for i in range(len(centroids)):
-            for j in range(i+1, len(centroids)):
-                mInterList.append( pow(centroids[i] - centroids[j], 2) )
-        mInter = min(mInterList)
-
-        v.append((mIntra / mInter, numOfCluster))
+    while not Qu.empty():
+        fis = Qu.get()
+        print fis
+        v.append(fis)
 
     optimumNumber = min(v)[1]
     clusters = clustersByKMeans(inp, optimumNumber)
@@ -691,9 +705,9 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
             print key, datatype[key], attribRange[key]
         else:
             inp = [float(value) for value in keyValueNodes[key]]
-            print key, datatype[key], len(inp)
+            print "-------------", len(inp)
             attribRange[key] = len(optimumClusters(inp))
-            print "", attribRange[key]
+            print key, datatype[key], attribRange[key]
 
     #compute the range of values for categorical and non-categorical attributes
 
@@ -715,6 +729,7 @@ def attributeRelativeImportance(dbFileName):
     f.close()
     
     '''
+
     pl.ion()
     fig = pl.figure()
     ax = fig.add_subplot(1,1,1)
@@ -924,7 +939,7 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         f.write(pickle.dumps(userProfiles))
         f.close()
 
-        normalizeWeights(userProfiles, keyValueNodes, datatype)
+        normalizeWeights(userSequence, keyValueNodes, datatype)
         
         f = open(dbFileName + "_userProfiles.pickle", "w")
         f.write(pickle.dumps(userProfiles))
