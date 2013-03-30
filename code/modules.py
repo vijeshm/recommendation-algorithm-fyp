@@ -17,7 +17,7 @@ import re
 import sys
 import numpy
 import itertools
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Pool
 import fileinput
 import gc
 from scipy.cluster.vq import kmeans2
@@ -592,7 +592,7 @@ def tweakAlpha(userProfile):
     """
     pass
 
-def tweakWeights(G, userProfile, itemSequence):
+def tweakWeights(keyValueNodes, userProfile, itemSequence):
     """
         G: Item Graph
         userProfile: A dictionary for individual users. It contains two keys, alpha and weights
@@ -600,8 +600,17 @@ def tweakWeights(G, userProfile, itemSequence):
     """
 
     #get the list of items that the user is associated with
-    items = [item for item, rating in itemSequence]
+    items = set([item for item, rating in itemSequence])
 
+    for attrib in keyValueNodes:
+        for value in keyValueNodes[attrib]:
+            numOfNodes = len(items.intersection(set(keyValueNodes[attrib][value])))
+            try:
+                userProfile["weights"][attrib] += numOfNodes * (numOfNodes - 1) / 2
+            except KeyError:
+                userProfile["weights"][attrib] = numOfNodes * (numOfNodes - 1) / 2
+    
+    '''
     #G.subgraph() function removes the attributes of the node. Since we do not want that to happen, I've written a function that does it. I couldnt figure out a networkx alternative which might be more efficient.
     H = G.subgraph(items)
     #get the relative weights of the user towards each attribute
@@ -618,6 +627,7 @@ def tweakWeights(G, userProfile, itemSequence):
                 else:
                     userProfile["weights"][attrib] = numOfCommonAttribs
                     #userProfile["weights"][attrib] = numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
+    '''
 
     #we still have to normalize the weights, which is done after the function returns
 
@@ -678,6 +688,16 @@ def optimumClusters(inp):
     clusters = [cluster for cluster in clusters if cluster != []]
     return clusters
 
+def findRange(key, datatype, keyValueNodes, attribRange):
+    if datatype[key] == "string" or datatype[key] == "bool":
+        attribRange[key] = len(keyValueNodes[key])
+        print key, datatype[key], attribRange[key]
+    else:
+        inp = [float(value) for value in keyValueNodes[key]]
+        print key, datatype[key], len(inp)
+        attribRange[key] = len(optimumClusters(inp))
+        print "", attribRange[key]
+
 def normalizeWeights(userProfiles, keyValueNodes, datatype):
     """
         userProfiles (dictionary) : contains userProfiles each containing 2 keys, alpha and weights
@@ -685,15 +705,10 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
         Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
     """
     attribRange = {}
+    pool = Pool(processes=4)
     for key in keyValueNodes:
-        if datatype[key] == "string" or datatype[key] == "bool":
-            attribRange[key] = len(keyValueNodes[key])
-            print key, datatype[key], attribRange[key]
-        else:
-            inp = [float(value) for value in keyValueNodes[key]]
-            print key, datatype[key], len(inp)
-            attribRange[key] = len(optimumClusters(inp))
-            print "", attribRange[key]
+        #pool.apply_async(findRange, [key, datatype, attribRange])
+        findRange(key, datatype, keyValueNodes, attribRange)
 
     #compute the range of values for categorical and non-categorical attributes
 
@@ -873,11 +888,13 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
 
     #load the reverse enumerations
     enumRev = reverseMapping(dbFileName)
-        
+    
+    '''
     #load the graph onto an object
     print "reading Graph"
     G = constructGraph(keyValueNodes, enum, datatype)
     print "done reading Graph"
+    '''
 
     # load the userSequence onto an object
     print "reading usage data"
@@ -909,16 +926,17 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         userProfiles = {}
         count = 0
         numOfUsers = float(len(userSequence))
+
+        pool = Pool(processes=4)
         for sequence in userSequence:
-            if count == 50:
-                break
             # initializing alpha, weight vector to each user
             print "percentage completion: ", count / numOfUsers, count
             count += 1
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
-            tweakWeights(G, userProfiles[sequence], userSequence[sequence])
+            pool.apply_async(tweakWeights, [keyValueNodes, userProfiles[sequence], userSequence[sequence]])
+            #tweakWeights(keyValueNodes, userProfiles[sequence], userSequence[sequence])
 
         f = open(dbFileName + "_userProfiles_beforeNorming.pickle", "w")
         f.write(pickle.dumps(userProfiles))
