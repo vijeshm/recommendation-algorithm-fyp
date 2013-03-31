@@ -18,6 +18,8 @@ import sys
 import numpy
 import itertools
 from multiprocessing import Process, Queue, Pool
+import thread
+import threading
 import fileinput
 import gc
 from scipy.cluster.vq import kmeans2
@@ -594,40 +596,20 @@ def tweakAlpha(userProfile):
 
 def tweakWeights(keyValueNodes, userProfile, itemSequence):
     """
-        G: Item Graph
-        userProfile: A dictionary for individual users. It contains two keys, alpha and weights
         itemSequence: A list of tuples of the form (item, rating)
     """
 
     #get the list of items that the user is associated with
     items = set([item for item, rating in itemSequence])
-
+    userProfileWeights = {}
     for attrib in keyValueNodes:
         for value in keyValueNodes[attrib]:
             numOfNodes = len(items.intersection(set(keyValueNodes[attrib][value])))
             try:
-                userProfile["weights"][attrib] += numOfNodes * (numOfNodes - 1) / 2
+                userProfileWeights[attrib] += numOfNodes * (numOfNodes - 1) / 2
             except KeyError:
-                userProfile["weights"][attrib] = numOfNodes * (numOfNodes - 1) / 2
-    
-    '''
-    #G.subgraph() function removes the attributes of the node. Since we do not want that to happen, I've written a function that does it. I couldnt figure out a networkx alternative which might be more efficient.
-    H = G.subgraph(items)
-    #get the relative weights of the user towards each attribute
-    for node in H.nodes():
-        neighbors = H.neighbors(node)
-        neighbors.remove(node)
-        for neighbor in neighbors: #scores must be updated from each individual neighbor. This would also mean that the weights would be added twice. But that wouldnt be a problem since we're normalizing it later on.
-            #the weight for each attribute must be computed. Hence iterate through the edge attributes, find out the number of common attribute-value pairs for each attribute. If the userProfiles have been updated for the first time, initialize it with the formula. If the attribute has already been updated once, then increment the weights correspondingly.
-            for attrib in H[node][neighbor]:
-                numOfCommonAttribs = len(H[node][neighbor][attrib])
-                if userProfile["weights"].has_key(attrib):
-                    userProfile["weights"][attrib] += numOfCommonAttribs
-                    #userProfile["weights"][attrib] += numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
-                else:
-                    userProfile["weights"][attrib] = numOfCommonAttribs
-                    #userProfile["weights"][attrib] = numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
-    '''
+                userProfileWeights[attrib] = numOfNodes * (numOfNodes - 1) / 2
+    userProfile["weights"] = userProfileWeights
 
     #we still have to normalize the weights, which is done after the function returns
 
@@ -656,32 +638,53 @@ def clustersByKMeans(inp, numOfClusters):
     retVal = retVal.values()
     return retVal
 
+def findClusterQuality(numOfCluster, inp, v):
+    #sys.stdout.write('\b'*10)
+    #sys.stdout.write(str(numOfCluster))
+
+    print "numOfCluster for the thread: ", numOfCluster
+    n = len(inp)
+    mIntra = 0
+    clusters = clustersByKMeans(inp, numOfCluster)
+    clusters = [cluster for cluster in clusters if cluster != []]
+    for cluster in clusters:
+        centroid = numpy.average(cluster)
+        for member in cluster:
+            mIntra += pow(member - centroid, 2)
+    mIntra /= n
+
+    centroids = [numpy.average(cluster) for cluster in clusters]
+    mInterList = []
+    for i in range(len(centroids)):
+        for j in range(i+1, len(centroids)):
+            mInterList.append( pow(centroids[i] - centroids[j], 2) )
+    mInter = min(mInterList)
+
+    v.append( (mIntra / mInter, numOfCluster) )
+
 def optimumClusters(inp):
     numOfClusters = range(2, len(inp))
-
-    n = len(inp)
     v = []
+
+    #pool = Pool(processes=4)
+    threads = []
     for numOfCluster in numOfClusters:
-        sys.stdout.write('\b'*10)
-        sys.stdout.write(str(numOfCluster))
+        #findClusterQuality(v, numOfCluster, inp)
+        threads.append(threading.Thread(target=findClusterQuality, args=(numOfCluster, inp, v)))
 
-        mIntra = 0
-        clusters = clustersByKMeans(inp, numOfCluster)
-        clusters = [cluster for cluster in clusters if cluster != []]
-        for cluster in clusters:
-            centroid = numpy.average(cluster)
-            for member in cluster:
-                mIntra += pow(member - centroid, 2)
-        mIntra /= n
+        '''
+        result = pool.apply_async(findClusterQuality, [numOfCluster, inp])
+        v.append(result.get())
+        '''
 
-        centroids = [numpy.average(cluster) for cluster in clusters]
-        mInterList = []
-        for i in range(len(centroids)):
-            for j in range(i+1, len(centroids)):
-                mInterList.append( pow(centroids[i] - centroids[j], 2) )
-        mInter = min(mInterList)
+    for thread in threads:
+        thread.start()
 
-        v.append((mIntra / mInter, numOfCluster))
+    count = 0
+    for thread in threads:
+        thread.join()
+        print float(count) / len(threads)
+        count += 1
 
     optimumNumber = min(v)[1]
     clusters = clustersByKMeans(inp, optimumNumber)
@@ -695,8 +698,13 @@ def findRange(key, datatype, keyValueNodes, attribRange):
     else:
         inp = [float(value) for value in keyValueNodes[key]]
         print key, datatype[key], len(inp)
+
+        #plt.plot(inp, [0]*len(inp), 'bo')
+        #plt.show()
+
         attribRange[key] = len(optimumClusters(inp))
-        print "", attribRange[key]
+        sys.stdout.write('\b'*10)
+        print "range of the attribs of " + key + ": " , attribRange[key]
 
 def normalizeWeights(userProfiles, keyValueNodes, datatype):
     """
@@ -704,8 +712,9 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
         keyValueNodes 
         Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
     """
+
     attribRange = {}
-    pool = Pool(processes=4)
+    #pool = Pool(processes=4)
     for key in keyValueNodes:
         #pool.apply_async(findRange, [key, datatype, attribRange])
         findRange(key, datatype, keyValueNodes, attribRange)
@@ -733,7 +742,6 @@ def attributeRelativeImportance(dbFileName):
     pl.ion()
     fig = pl.figure()
     ax = fig.add_subplot(1,1,1)
-
     '''
 
     avg = {}
@@ -874,7 +882,7 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         #in case the graph isnt availble, write the learnt graph into a file called GraphDB.pickle
         #comment this out when you already have a learnt graph
         print "building graph from", dbFileName
-        learnGraph(dbFileName, edgeList=False)
+        learnGraph(dbFileName, edgeList=False) #As of now, edgeList=True doesnt work coz it needs the graph object to be built.
         print "done with building graph.."
         
     #load the type Info into an object
@@ -927,22 +935,38 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         count = 0
         numOfUsers = float(len(userSequence))
 
-        pool = Pool(processes=4)
+
+        #pool = Pool(processes=4)
+        threads = []
         for sequence in userSequence:
             # initializing alpha, weight vector to each user
-            print "percentage completion: ", count / numOfUsers, count
+            if count == 100:
+                break
             count += 1
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
-            pool.apply_async(tweakWeights, [keyValueNodes, userProfiles[sequence], userSequence[sequence]])
-            #tweakWeights(keyValueNodes, userProfiles[sequence], userSequence[sequence])
+            
+            #result = pool.apply_async(tweakWeights, [keyValueNodes, userSequence[sequence]])
+            #userProfiles[sequence]["weights"] = result.get()
+
+            threads.append(threading.Thread(target=tweakWeights, args=(keyValueNodes, userProfiles[sequence], userSequence[sequence])))
+
+            #userProfiles[sequence]["weights"] = tweakWeights(keyValueNodes, userSequence[sequence])
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
         f = open(dbFileName + "_userProfiles_beforeNorming.pickle", "w")
         f.write(pickle.dumps(userProfiles))
         f.close()
 
+        print "   normalizing weights.."
         normalizeWeights(userProfiles, keyValueNodes, datatype)
+        print "   done normalizing weights.."
         
         f = open(dbFileName + "_userProfiles.pickle", "w")
         f.write(pickle.dumps(userProfiles))
