@@ -664,18 +664,11 @@ def findClusterQuality(numOfCluster, inp, v):
 
 def optimumClusters(inp):
     numOfClusters = range(2, len(inp))
+    
     v = []
-
-    #pool = Pool(processes=4)
     threads = []
     for numOfCluster in numOfClusters:
-        #findClusterQuality(v, numOfCluster, inp)
         threads.append(threading.Thread(target=findClusterQuality, args=(numOfCluster, inp, v)))
-
-        '''
-        result = pool.apply_async(findClusterQuality, [numOfCluster, inp])
-        v.append(result.get())
-        '''
 
     for thread in threads:
         thread.start()
@@ -694,17 +687,23 @@ def optimumClusters(inp):
 def findRange(key, datatype, keyValueNodes, attribRange):
     if datatype[key] == "string" or datatype[key] == "bool":
         attribRange[key] = len(keyValueNodes[key])
-        print key, datatype[key], attribRange[key]
     else:
         inp = [float(value) for value in keyValueNodes[key]]
-        print key, datatype[key], len(inp)
 
-        #plt.plot(inp, [0]*len(inp), 'bo')
-        #plt.show()
+        dist = [ (inp[i+1] - inp[i]) for i in range(len(inp) - 1)]
+        avrg = numpy.average(dist)
 
-        attribRange[key] = len(optimumClusters(inp))
-        sys.stdout.write('\b'*10)
-        print "range of the attribs of " + key + ": " , attribRange[key]
+        clusters = []
+        cluster = []
+        for i in range(len(dist)):
+            if dist[i] < avrg:
+                cluster.append(inp[i])
+            elif cluster != []:
+                clusters.append(cluster)
+                cluster = []
+
+        #attribRange[key] = len(optimumClusters(inp))
+        attribRange[key] = len(clusters)
 
 def normalizeWeights(userProfiles, keyValueNodes, datatype):
     """
@@ -714,11 +713,15 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
     """
 
     attribRange = {}
-    #pool = Pool(processes=4)
+    threads = []
     for key in keyValueNodes:
-        #pool.apply_async(findRange, [key, datatype, attribRange])
-        findRange(key, datatype, keyValueNodes, attribRange)
+        threads.append(threading.Thread(target=findRange, args=(key, datatype, keyValueNodes, attribRange)))
 
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
     #compute the range of values for categorical and non-categorical attributes
 
     for profile in userProfiles:
@@ -932,41 +935,40 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         # each user is associated with his/her own alpha and the attribute importance list
         print "\ncreating userProfiles.."
         userProfiles = {}
+
         count = 0
         numOfUsers = float(len(userSequence))
-
-
-        #pool = Pool(processes=4)
         threads = []
         for sequence in userSequence:
             # initializing alpha, weight vector to each user
-            if count == 100:
-                break
             count += 1
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
             
-            #result = pool.apply_async(tweakWeights, [keyValueNodes, userSequence[sequence]])
-            #userProfiles[sequence]["weights"] = result.get()
-
             threads.append(threading.Thread(target=tweakWeights, args=(keyValueNodes, userProfiles[sequence], userSequence[sequence])))
 
-            #userProfiles[sequence]["weights"] = tweakWeights(keyValueNodes, userSequence[sequence])
-
+        count = 0
+        numOfUsers = float(len(threads))        
         for thread in threads:
-            thread.start()
+            print "starting thread", count
+            thread.start()  
+            count += 1
 
+        count = 0
+        numOfUsers = float(len(threads))
         for thread in threads:
             thread.join()
+            print "percentage completion: ", count / numOfUsers
+            count += 1
 
         f = open(dbFileName + "_userProfiles_beforeNorming.pickle", "w")
         f.write(pickle.dumps(userProfiles))
         f.close()
 
-        print "   normalizing weights.."
+        print " normalizing weights.."
         normalizeWeights(userProfiles, keyValueNodes, datatype)
-        print "   done normalizing weights.."
+        print " done normalizing weights.."
         
         f = open(dbFileName + "_userProfiles.pickle", "w")
         f.write(pickle.dumps(userProfiles))
