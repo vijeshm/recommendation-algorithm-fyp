@@ -11,6 +11,9 @@ f = open("../movielens_1m_userProfiles_beforeNorming.pickle", "r")
 beforeNorm = pickle.loads(f.read())
 f.close()
 
+print beforeNorm.keys()
+raw_input()
+
 f = open("../movielens_1m_userProfiles.pickle", "r")
 afterNorm = pickle.loads(f.read())
 f.close()

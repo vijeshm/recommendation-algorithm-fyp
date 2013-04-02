@@ -50,7 +50,6 @@ def learnGraph(JSONdb, edgeList=False):
     #Building the graph
     for item in itemList:
         uid = str(item['id'][0])
-        #print uid
 
         for attrs in item:
             #check if the node already has the attribute.
@@ -65,21 +64,45 @@ def learnGraph(JSONdb, edgeList=False):
             else:
                 attributeAndNodes[attrs] = {}
                 for attribute in item[attrs]:
-                    #print attrs
-                    #print attribute
                     attributeAndNodes[attrs][attribute] = [uid]
 
 
     enumAttr = dict([ (attr, "@"+str(enum)) for enum, attr in list(enumerate(attributeAndNodes.keys())) ])
     enumValues = {}
     for attr in attributeAndNodes:
-        if typeInfo[attr] == "string" and attr !="id" : 
+        if (typeInfo[attr] == "string" or typeInfo[attr] == "bool") and attr !="id" : 
             #we enumerate only those attributes which takes string values.
             enumValues[attr] = dict([ (attribute, "#"+str(enum)) for enum, attribute in list(enumerate(attributeAndNodes[attr].keys())) ])
 
     enum = {}
     enum["attrs"] = enumAttr
     enum["values"] = enumValues
+
+    for attr in attributeAndNodes:
+        if typeInfo[attr]=="float" or typeInfo[attr] == "integer" or typeInfo[attr] == "date":
+            inp = [float(value) for value in attributeAndNodes[attr]]
+            inp.sort()
+            
+            dist = [ (inp[i+1] - inp[i]) for i in range(len(inp) - 1) ]
+            avrg = numpy.average(dist)
+
+            cutpoint = 0
+            clusters = []
+            for i in range(len(dist)):
+                if dist[i] >= avrg:
+                    clusters.append(inp[cutpoint:i+1])
+                    cutpoint = i+1
+
+            if cutpoint != len(dist):
+                clusters.append(inp[cutpoint:])
+
+            newVal = {}
+            for cluster in clusters:
+                nodes = []
+                for value in cluster:
+                    nodes.extend(attributeAndNodes[attr][value])
+                newVal[str(cluster)] = nodes
+            attributeAndNodes[attr] = newVal
 
     '''
     print "generating graph.."
@@ -609,20 +632,10 @@ def tweakWeights(keyValueNodes, userProfile, itemSequence):
                 userProfileWeights[attrib] += numOfNodes * (numOfNodes - 1) / 2
             except KeyError:
                 userProfileWeights[attrib] = numOfNodes * (numOfNodes - 1) / 2
+
     userProfile["weights"] = userProfileWeights
 
     #we still have to normalize the weights, which is done after the function returns
-
-def getEdges(G):
-    edges = G.edges()    
-    temp = []
-    for edge in edges:
-        #if type(edge[0]) == int and type(edge[1]) == int:
-        if edge[1].isdigit():
-            temp.append(edge)
-    #print temp
-    #raw_input("dbg1")
-    return temp
 
 def clustersByKMeans(inp, numOfClusters):
     data = numpy.ndarray( (len(inp),1), buffer=numpy.array(inp), dtype=float)
@@ -685,6 +698,8 @@ def optimumClusters(inp):
     return clusters
 
 def findRange(key, datatype, keyValueNodes, attribRange):
+    attribRange[key] = len(keyValueNodes[key])
+    '''
     if datatype[key] == "string" or datatype[key] == "bool":
         attribRange[key] = len(keyValueNodes[key])
     else:
@@ -704,6 +719,7 @@ def findRange(key, datatype, keyValueNodes, attribRange):
 
         #attribRange[key] = len(optimumClusters(inp))
         attribRange[key] = len(clusters)
+    '''
 
 def normalizeWeights(userProfiles, keyValueNodes, datatype):
     """
@@ -713,6 +729,9 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
     """
 
     attribRange = {}
+    for key in keyValueNodes:
+        attribRange[key] = len(keyValueNodes[key])
+    '''
     threads = []
     for key in keyValueNodes:
         threads.append(threading.Thread(target=findRange, args=(key, datatype, keyValueNodes, attribRange)))
@@ -723,6 +742,7 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
     for thread in threads:
         thread.join()
     #compute the range of values for categorical and non-categorical attributes
+    '''
 
     for profile in userProfiles:
         for attrib in userProfiles[profile]["weights"]:
