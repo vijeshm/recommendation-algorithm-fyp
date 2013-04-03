@@ -753,62 +753,58 @@ def normalizeWeights(userProfiles, keyValueNodes, datatype):
         for attr in userProfiles[profile]["weights"]:
             userProfiles[profile]["weights"][attr] /= sumOfWeights
 
-def attributeRelativeImportance(dbFileName):
+def attributeRelativeImportance(dbFileName, dynamicPlot=False):
     """
         In order to determine the relative importance of each attribute, we take the average out the attribute's weight from the all the users.
     """
-    f = open(dbFileName + "_userProfiles.pickle", "r")
-    userProfiles = pickle.loads(f.read())
+    f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
+    userProfiles = json.loads(f.read())
     f.close()
     
-    '''
-    pl.ion()
-    fig = pl.figure()
-    ax = fig.add_subplot(1,1,1)
-    '''
+    if dynamicPlot:
+        pl.ion()
+        fig = pl.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.set_ylabel("weights")
+        ax.set_title("Dynamic Plotting of the convergence of the weights progressively")
 
-    avg = {}
+        width = 0.2
+
+    weights = {}
+    count = 0
+    numOfUsers = len(userProfiles)
     for userProfile in userProfiles:
+        count += 1
         for attr in userProfiles[userProfile]["weights"]:
-            if avg.has_key(attr):
-                avg[attr] += userProfiles[userProfile]["weights"][attr]
-            else:
-                avg[attr] = userProfiles[userProfile]["weights"][attr]
+            try:
+                weights[attr] += userProfiles[userProfile]["weights"][attr]
+            except KeyError:
+                weights[attr] = userProfiles[userProfile]["weights"][attr]
 
-        x = []
-        y = []
-        sumOfWeights = sum(avg.values())
-        for attr in avg:
-            x.append(attr)
-            y.append(avg[attr] / float(sumOfWeights))
+        if dynamicPlot:
+            x = []
+            y = []
+            sumOfWeights = float(sum(weights.values()))
+            #print sumOfWeights, "this should be an integer, incrementing by 1 at every step."
+            #raw_input()
+            for attr in weights:
+                x.append(attr)
+                y.append(weights[attr] / sumOfWeights)
 
-        '''
-        ax.clear()
-        ax.plot(y)
-        for i in range(len(y)):
-            if y[i] > 0.025:
-                ax.text(i, y[i], x[i])
+            ax.clear()
+            xPos = numpy.arange(len(weights))
+            rects0 = ax.bar(xPos, y, width, color='#FF3300')
+            ax.set_xticks(xPos + width)
+            ax.set_xticklabels(x)
+            #ax.legend( (rects0[0],), ('relative Attribute importance',) )
+            ax.text(0,0.3,"fractional completion: " + str(count / float(numOfUsers)))
+            pl.draw()
 
-        pl.draw()
-        pl.savefig(dbFileName + "_itemDimensionalityReduction.png")
-        #time.sleep(0.001)
-        '''
+    for attr in weights:
+        weights[attr] = weights[attr] / numOfUsers
 
-    '''
-    itemPairs = avg.items()
-    x = [x1 for x1,y1 in itemPairs]
-    y = [y1 for x1,y1 in itemPairs]
-    
-    for xcoord in range(len(y)):
-        if y[xcoord] > 0.025:
-            plt.text(xcoord, y[xcoord], x[xcoord])
-
-    plt.plot(y)
-    plt.show()
-    '''
-
-    f = open(dbFileName + "_attributeRelativeImportance.pickle", "w")
-    f.write(pickle.dumps(avg))
+    f = open(dbFileName + "_attributeRelativeImportance.json", "w")
+    f.write(json.dumps(weights))
     f.close()
 
 #os.system("python modules.py --db=movielens --usageData=movielens_userData.json -userProfiles -reduceDimensions -userSimilarity=6040 -formClusters=0.8")
@@ -982,31 +978,29 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
             print "percentage completion: ", count / numOfUsers
             count += 1
 
-        f = open(dbFileName + "_userProfiles_beforeNorming.pickle", "w")
-        f.write(pickle.dumps(userProfiles))
+        f = open(dbFileName + "_userProfiles_beforeNorming.json", "w")
+        f.write(json.dumps(userProfiles))
         f.close()
 
         print " normalizing weights.."
         normalizeWeights(userProfiles, keyValueNodes, datatype)
         print " done normalizing weights.."
         
-        f = open(dbFileName + "_userProfiles.pickle", "w")
-        f.write(pickle.dumps(userProfiles))
+        f = open(dbFileName + "_userProfiles_afterNorming.json", "w")
+        f.write(json.dumps(userProfiles))
         f.close()
         print "done creating userProfiles.."
 
     #load the userProfiles onto an object
-    f = open(dbFileName + "_userProfiles.pickle", "r")
-    userProfiles = pickle.loads(f.read())
+    f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
+    userProfiles = json.loads(f.read())
     f.close()
 
-    if reduceDimensions:
-        #print "have to reduce dimensions"
-        
+    if reduceDimensions:        
         #Dimensionality Reduction
         #find out the relative importance of the attributes, by considering the attribute's relative importance from all users. write the file to attributeRelativeImportance.pickle
         print "\nreducing dimensions"
-        attributeRelativeImportance(dbFileName)
+        attributeRelativeImportance(dbFileName, dynamicPlot=False)
         print "done reducing dimensions"
         
     if userSimilarity:
@@ -1121,4 +1115,4 @@ def mae(db=None, testData=None):
     return mae
 
 if __name__ == "__main__":
-    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", userProfiles=True)
+    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", reduceDimensions=True)
