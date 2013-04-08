@@ -204,7 +204,232 @@ def egocentricRecommendation(graphDb, userSequence, dbFileName, uid):
     #print "written to file", dbFileName + "_" + str(uid) + "_contentReco.pickle"
     #raw_input()
 
-def buildUserSimilarityDict(G, userSequence, userProfiles, dbFileName, upperlim):
+def computeSimilarity(u1, u2):
+    pass
+
+def buildSimGraph(keyValueNodes, userSequence):
+    G = {}
+    count = 0
+    for attr in keyValueNodes:
+        print count / float(len(attr))
+        count += 1
+
+        for value in keyValueNodes[attr]:
+            combo = itertools.combinations(keyValueNodes[attr][value], 2)
+            for item1, item2 in combo:
+                try:
+                    G[item1][item2][attr] = len(keyValueNodes[attr][value])
+                except:
+                    if not G.has_key(item1):
+                        G[item1] = {}
+                        G[item1][item2] = {}
+                    elif not G[item1].has_key(item2):
+                        G[item1][item2] = {}
+
+                    #print G[item1].has_key(item2), G[item2].has_key(item1)
+                    G[item1][item2][attr] = len(keyValueNodes[attr][value])
+    return G
+
+def parallelizePairs(key, value, nodes, itemLookup, userProfiles, itemPair):
+    while True:
+        f = open("/proc/meminfo", "r")
+        memtotal = f.readline()
+        memfree = f.readline()
+        f.close()
+        free = float(memfree.split()[1]) / float(memtotal.split()[1])
+
+        if free > 0.4:
+            break
+        '''
+        else:
+            print "waiting ", key, value
+        '''
+
+    print itemPair
+    usersList1 = set(itemLookup[itemPair[0]])
+    usersList2 = set(itemLookup[itemPair[1]])
+    intersection = usersList1.intersection(usersList2)
+    union = usersList1.union(usersList2)
+    intersectionPairs = set(itertools.combinations(list(intersection), 2))
+    unionPairs = set(itertools.combinations(list(union), 2))
+    diffPairs = unionPairs.difference(intersectionPairs)
+
+    userSim = {}
+    for userPair in intersectionPairs:
+        try:
+            incValue = userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
+            userSim[userPair[0]][userPair[1]]["numerator"] += incValue
+            userSim[userPair[0]][userPair[1]]["denominator"] += incValue
+        except KeyError:
+            if not userSim.has_key(userPair[0]):
+                userSim[userPair[0]] = {}
+
+            if not userSim[userPair[0]].has_key(userPair[1]):
+                userSim[userPair[0]][userPair[1]] = {}
+
+            if not userSim[userPair[0]][userPair[1]].has_key("numerator"):
+                userSim[userPair[0]][userPair[1]]["numerator"] = 0
+                userSim[userPair[0]][userPair[1]]["denominator"] = 0
+
+            userSim[userPair[0]][userPair[1]]["numerator"] += incValue
+            userSim[userPair[0]][userPair[1]]["denominator"] += incValue            
+
+    for userPair in diffPairs:
+        try:
+            userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
+        except KeyError:
+            if not userSim.has_key(userPair[0]):
+                userSim[userPair[0]] = {}
+
+            if not userSim[userPair[0]].has_key(userPair[1]):
+                userSim[userPair[0]][userPair[1]] = {}
+
+            if not userSim[userPair[0]][userPair[1]].has_key("denominator"):
+                userSim[userPair[0]][userPair[1]]["denominator"] = 0
+
+            userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
+
+
+    if len(key + value + itemPair[0] + itemPair[1]) > 227:
+        filename = "0_" + str(key + "_" + value)[:227] + "_" + itemPair[0] + "_" + itemPair[1] + "_userSims.json"
+    else:
+        filename = "0_" + key + "_" + value + "_" + itemPair[0] + "_" + itemPair[1] + "_userSims.json"
+
+    print "filename", filename
+    f = open(filename, "w")
+    f.write(json.dumps(userSim))
+    f.close()
+
+def parallelizeValues(key, value, nodes, itemLookup, userProfiles):
+    print "     " + value
+    combo = list(itertools.combinations(nodes, 2))
+    print "combo len", len(combo), key, value
+    print "------------", len(combo) / float(len(itemLookup))
+
+    #if len(combo) / float(len(itemLookup)) > 0.15:
+    if False:
+        comboThreads = []
+        for itemPair in combo:
+            comboThreads.append(threading.Thread(target=parallelizePairs, args=(key, value, nodes, itemLookup, userProfiles, itemPair)))
+
+        for thread in comboThreads:
+            thread.start()
+
+        for thread in comboThreads:
+            thread.join()
+    else:
+        for itemPair in combo:
+            while True:
+                f = open("/proc/meminfo", "r")
+                memtotal = f.readline()
+                memfree = f.readline()
+                f.close()
+                free = float(memfree.split()[1]) / float(memtotal.split()[1])
+
+                if free > 0.4:
+                    break
+                '''
+                else:
+                    print "waiting ", key, value
+                '''
+            usersList1 = set(itemLookup[itemPair[0]])
+            usersList2 = set(itemLookup[itemPair[1]])
+            intersection = usersList1.intersection(usersList2)
+            union = usersList1.union(usersList2)
+            intersectionPairs = set(itertools.combinations(list(intersection), 2))
+            unionPairs = set(itertools.combinations(list(union), 2))
+            diffPairs = unionPairs.difference(intersectionPairs)
+
+            userSim = {}
+            for userPair in intersectionPairs:
+                try:
+                    incValue = userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
+                    userSim[userPair[0]][userPair[1]]["numerator"] += incValue
+                    userSim[userPair[0]][userPair[1]]["denominator"] += incValue
+                except KeyError:
+                    if not userSim.has_key(userPair[0]):
+                        userSim[userPair[0]] = {}
+
+                    if not userSim[userPair[0]].has_key(userPair[1]):
+                        userSim[userPair[0]][userPair[1]] = {}
+
+                    if not userSim[userPair[0]][userPair[1]].has_key("numerator"):
+                        userSim[userPair[0]][userPair[1]]["numerator"] = 0
+                        userSim[userPair[0]][userPair[1]]["denominator"] = 0
+
+                    userSim[userPair[0]][userPair[1]]["numerator"] += incValue
+                    userSim[userPair[0]][userPair[1]]["denominator"] += incValue            
+
+            for userPair in diffPairs:
+                try:
+                    userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
+                except KeyError:
+                    if not userSim.has_key(userPair[0]):
+                        userSim[userPair[0]] = {}
+
+                    if not userSim[userPair[0]].has_key(userPair[1]):
+                        userSim[userPair[0]][userPair[1]] = {}
+
+                    if not userSim[userPair[0]][userPair[1]].has_key("denominator"):
+                        userSim[userPair[0]][userPair[1]]["denominator"] = 0
+
+                    userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
+
+            if len(key + value) > 233:
+                filename = "0_" + str(key + "_" + value)[:233] + "_userSims.json"
+            else:
+                filename = "0_" + key + "_" + value + "_userSims.json"
+
+            f = open(filename, "w")
+            f.write(json.dumps(userSim))
+            f.close()
+
+def parallelizeKeys(key, valueNodes, itemLookup, userProfiles):
+    print key
+    valueThreads = []
+    for value in valueNodes:
+        valueThreads.append(threading.Thread(target=parallelizeValues, args=(key, value, valueNodes[value], itemLookup, userProfiles)))
+
+    for thread in valueThreads:
+        thread.start()
+
+    for thread in valueThreads:
+        thread.join()
+
+def buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName):
+    '''
+    #method1, by building graph structure.
+    print "building the graph for similarity"
+    G = buildSimGraph(keyValueNodes, userSequence)
+    print "done"
+    '''
+
+    itemLookup = {}
+    for user in userSequence:
+        for item, rating in userSequence[user]:
+            try:
+                itemLookup[item].append(user)
+            except KeyError:
+                itemLookup[item] = [user]
+
+    for key in keyValueNodes:
+        for value in keyValueNodes[key]:
+            for node in keyValueNodes[key][value]:
+                if not itemLookup.has_key(node):
+                    itemLookup[node] = []
+
+    keysThreads = []
+    for key in keyValueNodes:
+        keysThreads.append(threading.Thread(target=parallelizeKeys, args=(key, keyValueNodes[key], itemLookup, userProfiles)))
+
+    for thread in keysThreads:
+        thread.start()
+        thread.join()
+
+    for thread in keysThreads:
+        thread.join()
+
+def buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim):
     '''
     G (networkx object): The Graph of items
     userSequence (dictionary) : dictionary of users, with their movie watching sequences
@@ -767,7 +992,6 @@ def attributeRelativeImportance(dbFileName, dynamicPlot=False):
         ax = fig.add_subplot(1,1,1)
         ax.set_ylabel("weights")
         ax.set_title("Dynamic Plotting of the convergence of the weights progressively")
-
         width = 0.2
 
     weights = {}
@@ -1008,7 +1232,8 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         upperlim = userSimilarity
 
         print "building user similarity"
-        buildUserSimilarityDict(G, userSequence, userProfiles, dbFileName, upperlim)
+        #buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim)
+        buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName)
         print "done building user similarity"
 
     f = open(dbFileName + "_userSimilarity.pickle", "r")
@@ -1115,4 +1340,4 @@ def mae(db=None, testData=None):
     return mae
 
 if __name__ == "__main__":
-    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", reduceDimensions=True)
+    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", userSimilarity=True)
