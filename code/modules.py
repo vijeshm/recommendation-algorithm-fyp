@@ -104,32 +104,6 @@ def learnGraph(JSONdb, edgeList=False):
                 newVal[str(cluster)] = nodes
             attributeAndNodes[attr] = newVal
 
-    '''
-    print "generating graph.."
-    G = nx.Graph()
-    for attrs in attributeAndNodes:
-        if attrs != "id":
-            if typeInfo[attrs] == "string" or typeInfo[attrs] == "bool":            
-                for attribute in attributeAndNodes[attrs]:
-                    edgeGen =  list(itertools.combinations(attributeAndNodes[attrs][attribute],2))+[(uid,uid) for uid in attributeAndNodes[attrs][attribute]]
-                    for edge in edgeGen :
-                        G.add_edge(edge[0],edge[1])
-                        if G[edge[0]][edge[1]].has_key(enum["attrs"][attrs]):
-                            G[edge[0]][edge[1]][enum["attrs"][attrs]].append(enum["values"][attrs][attribute])
-                        else :
-                            G[edge[0]][edge[1]][enum["attrs"][attrs]]=[enum["values"][attrs][attribute]]
-            else:
-                for attribute in attributeAndNodes[attrs]:
-                    edgeGen =  list(itertools.combinations(attributeAndNodes[attrs][attribute],2))+[(uid,uid) for uid in attributeAndNodes[attrs][attribute]]
-                    for edge in edgeGen:
-                        G.add_edge(edge[0],edge[1])
-                        if G[edge[0]][edge[1]].has_key(attrs):
-                           G[edge[0]][edge[1]][attrs].append(attribute)
-                        else:
-                           G[edge[0]][edge[1]][attrs]=[attribute]
-    print "done generating graph.."
-    '''
-
     print "writing " + JSONdb + "_keyValueNodes.json"
     f = open(JSONdb + "_keyValueNodes.json", "w")
     f.write(json.dumps(attributeAndNodes))
@@ -204,9 +178,6 @@ def egocentricRecommendation(graphDb, userSequence, dbFileName, uid):
     #print "written to file", dbFileName + "_" + str(uid) + "_contentReco.pickle"
     #raw_input()
 
-def computeSimilarity(u1, u2):
-    pass
-
 def buildSimGraph(keyValueNodes, userSequence):
     G = {}
     count = 0
@@ -230,204 +201,129 @@ def buildSimGraph(keyValueNodes, userSequence):
                     G[item1][item2][attr] = len(keyValueNodes[attr][value])
     return G
 
-def parallelizePairs(key, value, nodes, itemLookup, userProfiles, itemPair):
-    while True:
-        f = open("/proc/meminfo", "r")
-        memtotal = f.readline()
-        memfree = f.readline()
+def buildGraph(keyValueNodes):
+    print "generating graph.."
+    G = nx.Graph()
+    for attrs in keyValueNodes:
+        if attrs != "id":            
+            for attribute in keyValueNodes[attrs]:
+                edgeGen =  list(itertools.combinations(keyValueNodes[attrs][attribute],2))+[(uid,uid) for uid in keyValueNodes[attrs][attribute]]
+                for edge in edgeGen:
+                    G.add_edge(edge[0],edge[1])
+                    if G[edge[0]][edge[1]].has_key(attrs):
+                        G[edge[0]][edge[1]][attrs].append(keyValueNodes[attrs][attribute])
+                    else :
+                        G[edge[0]][edge[1]][attrs]=[keyValueNodes[attrs][attribute]]
+    print "done generating graph.."
+    return G
+
+class buildUserSimilarityDictNew(object):
+    '''
+    parllelizing the user profile generation with G object 
+    '''
+    def __init__(self,keyValueNodes, userSequence, userProfiles, dbFileName, upperlimNodes, upperlimUsers):
+        kvnCopy = copy.deepcopy(keyValueNodes)
+        nodes = []
+        for key in kvnCopy:
+            for value in kvnCopy[key]:
+                nodes.extend(kvnCopy[key][value])
+        nodes = list(set(nodes))
+        nodes = random.sample(nodes, upperlimNodes)
+
+        f = open("nodes.pickle", "r")
+        nodes = pickle.loads(f.read())
         f.close()
-        free = float(memfree.split()[1]) / float(memtotal.split()[1])
 
-        if free > 0.4:
-            break
+        for key in keyValueNodes:
+            for value in keyValueNodes[key]:
+                kvnCopy[key][value] = [node for node in keyValueNodes[key][value] if node in nodes]
+
+        self.G = buildGraph(kvnCopy)
+        self.upperlimNodes = upperlimNodes
+        self.upperlimUsers = upperlimUsers
+        self.userProfiles = userProfiles
+        self.dbFileName = dbFileName
+        self.userSimilarity = {}
+        self.userList = random.sample(userSequence.keys(), upperlimUsers)
+        
         '''
-        else:
-            print "waiting ", key, value
+        f = open("users.pickle", "w")
+        f.write(pickle.dumps(self.userList))
+        f.close()
         '''
 
-    print itemPair
-    usersList1 = set(itemLookup[itemPair[0]])
-    usersList2 = set(itemLookup[itemPair[1]])
-    intersection = usersList1.intersection(usersList2)
-    union = usersList1.union(usersList2)
-    intersectionPairs = set(itertools.combinations(list(intersection), 2))
-    unionPairs = set(itertools.combinations(list(union), 2))
-    diffPairs = unionPairs.difference(intersectionPairs)
+        f = open("users.pickle", "r")
+        self.userList = pickle.loads(f.read())
+        f.close()
 
-    userSim = {}
-    for userPair in intersectionPairs:
-        try:
-            incValue = userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
-            userSim[userPair[0]][userPair[1]]["numerator"] += incValue
-            userSim[userPair[0]][userPair[1]]["denominator"] += incValue
-        except KeyError:
-            if not userSim.has_key(userPair[0]):
-                userSim[userPair[0]] = {}
+        for user in self.userList:
+            self.userSimilarity[user]={}
+        
+        self.userSequence = userSequence
+        for user in userSequence:
+            self.userSequence[user] = [item for item in userSequence[user] if item[0] in nodes]
 
-            if not userSim[userPair[0]].has_key(userPair[1]):
-                userSim[userPair[0]][userPair[1]] = {}
+        self.threads = []
 
-            if not userSim[userPair[0]][userPair[1]].has_key("numerator"):
-                userSim[userPair[0]][userPair[1]]["numerator"] = 0
-                userSim[userPair[0]][userPair[1]]["denominator"] = 0
+    def computeSimilarity(self, user1, user2, user1items, user2items):
+        intersectingItems = list(user1items.intersection(user2items))
+        unionItems = list(user1items.union(user2items))
+        intersectingItemsPair = list(itertools.combinations(intersectingItems,2))
+        unionItemsPair = list(itertools.combinations(unionItems,2))
+        diffItemsPair = list(set(unionItemsPair) - set(intersectingItemsPair))
+        
+        del unionItemsPair
+        
+        numerator = 0.0
+        denominator = 0.0
 
-            userSim[userPair[0]][userPair[1]]["numerator"] += incValue
-            userSim[userPair[0]][userPair[1]]["denominator"] += incValue            
+        for edge in intersectingItemsPair:
+            node1 = edge[0]
+            node2 = edge[1]
+            for attr in self.G[node1][node2] :
+                increment = len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
+                numerator += increment
+                denominator += increment
 
-    for userPair in diffPairs:
-        try:
-            userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
-        except KeyError:
-            if not userSim.has_key(userPair[0]):
-                userSim[userPair[0]] = {}
+        for edge in diffItemsPair:
+            node1 = edge[0]
+            node2 = edge[1]
+            for attr in self.G[node1][node2]:
+                denominator += len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
 
-            if not userSim[userPair[0]].has_key(userPair[1]):
-                userSim[userPair[0]][userPair[1]] = {}
+        self.userSimilarity[user1][user2] = [numerator, denominator]
 
-            if not userSim[userPair[0]][userPair[1]].has_key("denominator"):
-                userSim[userPair[0]][userPair[1]]["denominator"] = 0
+    def buildSimilarity(self):
+        count = 0
+        totalUsers = len(self.userList) * (len(self.userList) - 1) / 2
+        for enumOut in enumerate(self.userList):
+            self.userSimilarity[enumOut[1]] = {}
+            user1items = set([movie for movie, rating in self.userSequence[enumOut[1]]])
+            for enumIn in enumerate(self.userList[enumOut[0]:]):
+                count += 1
+                user2items = set([movie for movie, rating in self.userSequence[enumIn[1]]])
+                self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
+                #self.computeSimilarity(enumOut[1], enumIn[1], user1items, user2items)
 
-            userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
-
-
-    if len(key + value + itemPair[0] + itemPair[1]) > 227:
-        filename = "0_" + str(key + "_" + value)[:227] + "_" + itemPair[0] + "_" + itemPair[1] + "_userSims.json"
-    else:
-        filename = "0_" + key + "_" + value + "_" + itemPair[0] + "_" + itemPair[1] + "_userSims.json"
-
-    print "filename", filename
-    f = open(filename, "w")
-    f.write(json.dumps(userSim))
-    f.close()
-
-def parallelizeValues(key, value, nodes, itemLookup, userProfiles):
-    print "     " + value
-    combo = list(itertools.combinations(nodes, 2))
-    print "combo len", len(combo), key, value
-    print "------------", len(combo) / float(len(itemLookup))
-
-    #if len(combo) / float(len(itemLookup)) > 0.15:
-    if False:
-        comboThreads = []
-        for itemPair in combo:
-            comboThreads.append(threading.Thread(target=parallelizePairs, args=(key, value, nodes, itemLookup, userProfiles, itemPair)))
-
-        for thread in comboThreads:
+        total = float(len(self.threads))
+        
+        count = 0
+        for thread in self.threads:
+            #print "start...", count / total
+            count += 1
             thread.start()
 
-        for thread in comboThreads:
+        count = 0
+        for thread in self.threads:
+            #print "join...", count / total
+            count += 1
             thread.join()
-    else:
-        for itemPair in combo:
-            while True:
-                f = open("/proc/meminfo", "r")
-                memtotal = f.readline()
-                memfree = f.readline()
-                f.close()
-                free = float(memfree.split()[1]) / float(memtotal.split()[1])
 
-                if free > 0.4:
-                    break
-                '''
-                else:
-                    print "waiting ", key, value
-                '''
-            usersList1 = set(itemLookup[itemPair[0]])
-            usersList2 = set(itemLookup[itemPair[1]])
-            intersection = usersList1.intersection(usersList2)
-            union = usersList1.union(usersList2)
-            intersectionPairs = set(itertools.combinations(list(intersection), 2))
-            unionPairs = set(itertools.combinations(list(union), 2))
-            diffPairs = unionPairs.difference(intersectionPairs)
-
-            userSim = {}
-            for userPair in intersectionPairs:
-                try:
-                    incValue = userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
-                    userSim[userPair[0]][userPair[1]]["numerator"] += incValue
-                    userSim[userPair[0]][userPair[1]]["denominator"] += incValue
-                except KeyError:
-                    if not userSim.has_key(userPair[0]):
-                        userSim[userPair[0]] = {}
-
-                    if not userSim[userPair[0]].has_key(userPair[1]):
-                        userSim[userPair[0]][userPair[1]] = {}
-
-                    if not userSim[userPair[0]][userPair[1]].has_key("numerator"):
-                        userSim[userPair[0]][userPair[1]]["numerator"] = 0
-                        userSim[userPair[0]][userPair[1]]["denominator"] = 0
-
-                    userSim[userPair[0]][userPair[1]]["numerator"] += incValue
-                    userSim[userPair[0]][userPair[1]]["denominator"] += incValue            
-
-            for userPair in diffPairs:
-                try:
-                    userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
-                except KeyError:
-                    if not userSim.has_key(userPair[0]):
-                        userSim[userPair[0]] = {}
-
-                    if not userSim[userPair[0]].has_key(userPair[1]):
-                        userSim[userPair[0]][userPair[1]] = {}
-
-                    if not userSim[userPair[0]][userPair[1]].has_key("denominator"):
-                        userSim[userPair[0]][userPair[1]]["denominator"] = 0
-
-                    userSim[userPair[0]][userPair[1]]["denominator"] += userProfiles[userPair[0]]["weights"][key] + userProfiles[userPair[1]]["weights"][key]
-
-            if len(key + value) > 233:
-                filename = "0_" + str(key + "_" + value)[:233] + "_userSims.json"
-            else:
-                filename = "0_" + key + "_" + value + "_userSims.json"
-
-            f = open(filename, "w")
-            f.write(json.dumps(userSim))
-            f.close()
-
-def parallelizeKeys(key, valueNodes, itemLookup, userProfiles):
-    print key
-    valueThreads = []
-    for value in valueNodes:
-        valueThreads.append(threading.Thread(target=parallelizeValues, args=(key, value, valueNodes[value], itemLookup, userProfiles)))
-
-    for thread in valueThreads:
-        thread.start()
-
-    for thread in valueThreads:
-        thread.join()
-
-def buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName):
-    '''
-    #method1, by building graph structure.
-    print "building the graph for similarity"
-    G = buildSimGraph(keyValueNodes, userSequence)
-    print "done"
-    '''
-
-    itemLookup = {}
-    for user in userSequence:
-        for item, rating in userSequence[user]:
-            try:
-                itemLookup[item].append(user)
-            except KeyError:
-                itemLookup[item] = [user]
-
-    for key in keyValueNodes:
-        for value in keyValueNodes[key]:
-            for node in keyValueNodes[key][value]:
-                if not itemLookup.has_key(node):
-                    itemLookup[node] = []
-
-    keysThreads = []
-    for key in keyValueNodes:
-        keysThreads.append(threading.Thread(target=parallelizeKeys, args=(key, keyValueNodes[key], itemLookup, userProfiles)))
-
-    for thread in keysThreads:
-        thread.start()
-        thread.join()
-
-    for thread in keysThreads:
-        thread.join()
+        print "writing " + self.dbFileName + "_userSimilarity.json"
+        f = open(self.dbFileName + "_userSimilarity.json", "w")
+        f.write(json.dumps(self.userSimilarity))
+        f.close()
+        print "done writing " + self.dbFileName + "_userSimilarity.json"
 
 def buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim):
     '''
@@ -1229,11 +1125,12 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         
     if userSimilarity:
         #print "have to compute user similarity"
-        upperlim = userSimilarity
+        upperlimNodes = 100
+        upperlimUsers = 600
 
         print "building user similarity"
         #buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim)
-        buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName)
+        buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName, upperlimNodes, upperlimUsers).buildSimilarity()
         print "done building user similarity"
 
     f = open(dbFileName + "_userSimilarity.pickle", "r")
