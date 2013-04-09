@@ -23,6 +23,7 @@ import threading
 import fileinput
 import gc
 from scipy.cluster.vq import kmeans2
+import concurrent.futures
 
 # Third party libraries
 import networkx as nx
@@ -265,7 +266,13 @@ class buildUserSimilarityDictNew(object):
 
         self.threads = []
 
-    def computeSimilarity(self, user1, user2, user1items, user2items):
+    #def computeSimilarity(self, user1, user2, user1items, user2items):
+    def computeSimilarity(self, args):
+        user1 = args[0]
+        user2 = args[1]
+        user1items = args[2]
+        user2items = args[3]
+
         intersectingItems = list(user1items.intersection(user2items))
         unionItems = list(user1items.union(user2items))
         intersectingItemsPair = list(itertools.combinations(intersectingItems,2))
@@ -291,9 +298,12 @@ class buildUserSimilarityDictNew(object):
             for attr in self.G[node1][node2]:
                 denominator += len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
 
-        self.userSimilarity[user1][user2] = [numerator, denominator]
+        #self.userSimilarity[user1][user2] = [numerator, denominator]
+        return (user1, user2, numerator, denominator)
 
     def buildSimilarity(self):
+        '''
+        #using graph and multithreading library
         count = 0
         totalUsers = len(self.userList) * (len(self.userList) - 1) / 2
         for enumOut in enumerate(self.userList):
@@ -318,6 +328,19 @@ class buildUserSimilarityDictNew(object):
             #print "join...", count / total
             count += 1
             thread.join()
+        '''
+
+        args = []
+        for enumOut in enumerate(self.userList):
+            self.userSimilarity[enumOut[1]] = {}
+            user1items = set([movie for movie, rating in self.userSequence[enumOut[1]]])
+            for enumIn in enumerate(self.userList[enumOut[0]:]):
+                user2items = set([movie for movie, rating in self.userSequence[enumIn[1]]])
+                args.append([enumOut[1], enumIn[1], user1items, user2items])
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            for (user1, user2, numerator, denominator) in executor.map(self.computeSimilarity, args):
+                self.userSimilarity[user1][user2] = [numerator, denominator]
 
         print "writing " + self.dbFileName + "_userSimilarity.json"
         f = open(self.dbFileName + "_userSimilarity.json", "w")
