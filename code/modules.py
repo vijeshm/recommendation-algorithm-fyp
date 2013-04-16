@@ -23,7 +23,7 @@ import threading
 import fileinput
 import gc
 from scipy.cluster.vq import kmeans2
-import concurrent.futures
+#import concurrent.futures
 
 # Third party libraries
 import networkx as nx
@@ -222,57 +222,27 @@ class buildUserSimilarityDictNew(object):
     '''
     parllelizing the user profile generation with G object 
     '''
-    def __init__(self,keyValueNodes, userSequence, userProfiles, dbFileName, upperlimNodes, upperlimUsers):
-        kvnCopy = copy.deepcopy(keyValueNodes)
-        nodes = []
-        for key in kvnCopy:
-            for value in kvnCopy[key]:
-                nodes.extend(kvnCopy[key][value])
-        nodes = list(set(nodes))
-        nodes = random.sample(nodes, upperlimNodes)
-
-        f = open("nodes.pickle", "r")
-        nodes = pickle.loads(f.read())
-        f.close()
-
-        for key in keyValueNodes:
-            for value in keyValueNodes[key]:
-                kvnCopy[key][value] = [node for node in keyValueNodes[key][value] if node in nodes]
-
-        self.G = buildGraph(kvnCopy)
-        self.upperlimNodes = upperlimNodes
-        self.upperlimUsers = upperlimUsers
+    def __init__(self,keyValueNodes, userSequence, userProfiles, dbFileName):
+        nodes = keyValueNodes.keys()
+        self.G = buildGraph(keyValueNodes)
         self.userProfiles = userProfiles
         self.dbFileName = dbFileName
         self.userSimilarity = {}
-        self.userList = random.sample(userSequence.keys(), upperlimUsers)
-        
-        '''
-        f = open("users.pickle", "w")
-        f.write(pickle.dumps(self.userList))
-        f.close()
-        '''
-
-        f = open("users.pickle", "r")
-        self.userList = pickle.loads(f.read())
-        f.close()
+        self.userList = userSequence.keys()
+        self.userSequence = userSequence
+        #print self.userSequence
 
         for user in self.userList:
             self.userSimilarity[user]={}
         
-        self.userSequence = userSequence
-        for user in userSequence:
-            self.userSequence[user] = [item for item in userSequence[user] if item[0] in nodes]
+        
+        for user in self.userSequence:
+            #print self.userSequence[user]
+            self.userSequence[user] = [item for item in self.userSequence[user]]
+            #print self.userSequence[user]
+            
 
-        self.threads = []
-
-    #def computeSimilarity(self, user1, user2, user1items, user2items):
-    def computeSimilarity(self, args):
-        user1 = args[0]
-        user2 = args[1]
-        user1items = args[2]
-        user2items = args[3]
-
+    def computeSimilarity(self, user1, user2, user1items, user2items):
         intersectingItems = list(user1items.intersection(user2items))
         unionItems = list(user1items.union(user2items))
         intersectingItemsPair = list(itertools.combinations(intersectingItems,2))
@@ -287,63 +257,43 @@ class buildUserSimilarityDictNew(object):
         for edge in intersectingItemsPair:
             node1 = edge[0]
             node2 = edge[1]
-            for attr in self.G[node1][node2] :
-                increment = len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
-                numerator += increment
-                denominator += increment
+            try :
+                for attr in self.G[node1][node2] :
+                    increment = len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
+                    numerator += increment
+                    denominator += increment
+            except KeyError:
+                pass
 
         for edge in diffItemsPair:
             node1 = edge[0]
             node2 = edge[1]
-            for attr in self.G[node1][node2]:
-                denominator += len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
+            try :
+                for attr in self.G[node1][node2]:
+                    denominator += len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
+            except KeyError:
+                pass
 
-        #self.userSimilarity[user1][user2] = [numerator, denominator]
-        return (user1, user2, numerator, denominator)
-
+        self.userSimilarity[user1][user2] = [numerator, denominator]
+    
     def buildSimilarity(self):
-        '''
-        #using graph and multithreading library
         count = 0
-        totalUsers = len(self.userList) * (len(self.userList) - 1) / 2
-        for enumOut in enumerate(self.userList):
-            self.userSimilarity[enumOut[1]] = {}
-            user1items = set([movie for movie, rating in self.userSequence[enumOut[1]]])
-            for enumIn in enumerate(self.userList[enumOut[0]:]):
+        totalUsers = float(len(self.userList) * (len(self.userList) - 1) / 2)
+        for user1 in self.userList:
+            self.userSimilarity[user1] = {}
+            user1items = set([movie for movie, rating in self.userSequence[user1]])
+            for user2 in self.userList[self.userList.index(user1)+1:]:
                 count += 1
-                user2items = set([movie for movie, rating in self.userSequence[enumIn[1]]])
-                self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
-                #self.computeSimilarity(enumOut[1], enumIn[1], user1items, user2items)
-
-        total = float(len(self.threads))
-        
-        count = 0
-        for thread in self.threads:
-            #print "start...", count / total
-            count += 1
-            thread.start()
-
-        count = 0
-        for thread in self.threads:
-            #print "join...", count / total
-            count += 1
-            thread.join()
-        '''
-
-        args = []
-        for enumOut in enumerate(self.userList):
-            self.userSimilarity[enumOut[1]] = {}
-            user1items = set([movie for movie, rating in self.userSequence[enumOut[1]]])
-            for enumIn in enumerate(self.userList[enumOut[0]:]):
-                user2items = set([movie for movie, rating in self.userSequence[enumIn[1]]])
-                args.append([enumOut[1], enumIn[1], user1items, user2items])
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            for (user1, user2, numerator, denominator) in executor.map(self.computeSimilarity, args):
-                self.userSimilarity[user1][user2] = [numerator, denominator]
+                user2items = set([movie for movie, rating in self.userSequence[user2]])
+                #self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
+                if count % 1000 :
+                    print "Progress : " , count/totalUsers 
+                #print user1items
+                #print user2items
+                self.computeSimilarity(user1, user2, user1items, user2items)
 
         print "writing " + self.dbFileName + "_userSimilarity.json"
-        f = open(self.dbFileName + "_userSimilarity.json", "w")
+        f = open(self.dbFileName+"_userSimilarity.json","w")
         f.write(json.dumps(self.userSimilarity))
         f.close()
         print "done writing " + self.dbFileName + "_userSimilarity.json"
@@ -1148,12 +1098,9 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         
     if userSimilarity:
         #print "have to compute user similarity"
-        upperlimNodes = 100
-        upperlimUsers = 600
-
         print "building user similarity"
         #buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim)
-        buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName, upperlimNodes, upperlimUsers).buildSimilarity()
+        buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName).buildSimilarity()
         print "done building user similarity"
 
     f = open(dbFileName + "_userSimilarity.pickle", "r")

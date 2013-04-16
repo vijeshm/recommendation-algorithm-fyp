@@ -17,10 +17,13 @@ import re
 import sys
 import numpy
 import itertools
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Pool
+import thread
+import threading
 import fileinput
 import gc
 from scipy.cluster.vq import kmeans2
+#import concurrent.futures
 
 # Third party libraries
 import networkx as nx
@@ -48,7 +51,6 @@ def learnGraph(JSONdb, edgeList=False):
     #Building the graph
     for item in itemList:
         uid = str(item['id'][0])
-        #print uid
 
         for attrs in item:
             #check if the node already has the attribute.
@@ -63,15 +65,13 @@ def learnGraph(JSONdb, edgeList=False):
             else:
                 attributeAndNodes[attrs] = {}
                 for attribute in item[attrs]:
-                    #print attrs
-                    #print attribute
                     attributeAndNodes[attrs][attribute] = [uid]
 
 
     enumAttr = dict([ (attr, "@"+str(enum)) for enum, attr in list(enumerate(attributeAndNodes.keys())) ])
     enumValues = {}
     for attr in attributeAndNodes:
-        if typeInfo[attr] == "string" and attr !="id" : 
+        if (typeInfo[attr] == "string" or typeInfo[attr] == "bool") and attr !="id" : 
             #we enumerate only those attributes which takes string values.
             enumValues[attr] = dict([ (attribute, "#"+str(enum)) for enum, attribute in list(enumerate(attributeAndNodes[attr].keys())) ])
 
@@ -79,31 +79,31 @@ def learnGraph(JSONdb, edgeList=False):
     enum["attrs"] = enumAttr
     enum["values"] = enumValues
 
-    '''
-    print "generating graph.."
-    G = nx.Graph()
-    for attrs in attributeAndNodes:
-        if attrs != "id":
-            if typeInfo[attrs] == "string" or typeInfo[attrs] == "bool":            
-                for attribute in attributeAndNodes[attrs]:
-                    edgeGen =  list(itertools.combinations(attributeAndNodes[attrs][attribute],2))+[(uid,uid) for uid in attributeAndNodes[attrs][attribute]]
-                    for edge in edgeGen :
-                        G.add_edge(edge[0],edge[1])
-                        if G[edge[0]][edge[1]].has_key(enum["attrs"][attrs]):
-                            G[edge[0]][edge[1]][enum["attrs"][attrs]].append(enum["values"][attrs][attribute])
-                        else :
-                            G[edge[0]][edge[1]][enum["attrs"][attrs]]=[enum["values"][attrs][attribute]]
-            else:
-                for attribute in attributeAndNodes[attrs]:
-                    edgeGen =  list(itertools.combinations(attributeAndNodes[attrs][attribute],2))+[(uid,uid) for uid in attributeAndNodes[attrs][attribute]]
-                    for edge in edgeGen:
-                        G.add_edge(edge[0],edge[1])
-                        if G[edge[0]][edge[1]].has_key(attrs):
-                           G[edge[0]][edge[1]][attrs].append(attribute)
-                        else:
-                           G[edge[0]][edge[1]][attrs]=[attribute]
-    print "done generating graph.."
-    '''
+    for attr in attributeAndNodes:
+        if typeInfo[attr]=="float" or typeInfo[attr] == "integer" or typeInfo[attr] == "date":
+            inp = [float(value) for value in attributeAndNodes[attr]]
+            inp.sort()
+            
+            dist = [ (inp[i+1] - inp[i]) for i in range(len(inp) - 1) ]
+            avrg = numpy.average(dist)
+
+            cutpoint = 0
+            clusters = []
+            for i in range(len(dist)):
+                if dist[i] >= avrg:
+                    clusters.append(inp[cutpoint:i+1])
+                    cutpoint = i+1
+
+            if cutpoint != len(dist):
+                clusters.append(inp[cutpoint:])
+
+            newVal = {}
+            for cluster in clusters:
+                nodes = []
+                for value in cluster:
+                    nodes.extend(attributeAndNodes[attr][value])
+                newVal[str(cluster)] = nodes
+            attributeAndNodes[attr] = newVal
 
     print "writing " + JSONdb + "_keyValueNodes.json"
     f = open(JSONdb + "_keyValueNodes.json", "w")
@@ -179,7 +179,128 @@ def egocentricRecommendation(graphDb, userSequence, dbFileName, uid):
     #print "written to file", dbFileName + "_" + str(uid) + "_contentReco.pickle"
     #raw_input()
 
-def buildUserSimilarityDict(G, userSequence, userProfiles, dbFileName, upperlim):
+def buildSimGraph(keyValueNodes, userSequence):
+    G = {}
+    count = 0
+    for attr in keyValueNodes:
+        print count / float(len(attr))
+        count += 1
+
+        for value in keyValueNodes[attr]:
+            combo = itertools.combinations(keyValueNodes[attr][value], 2)
+            for item1, item2 in combo:
+                try:
+                    G[item1][item2][attr] = len(keyValueNodes[attr][value])
+                except:
+                    if not G.has_key(item1):
+                        G[item1] = {}
+                        G[item1][item2] = {}
+                    elif not G[item1].has_key(item2):
+                        G[item1][item2] = {}
+
+                    #print G[item1].has_key(item2), G[item2].has_key(item1)
+                    G[item1][item2][attr] = len(keyValueNodes[attr][value])
+    return G
+
+def buildGraph(keyValueNodes):
+    print "generating graph.."
+    G = nx.Graph()
+    for attrs in keyValueNodes:
+        if attrs != "id":            
+            for attribute in keyValueNodes[attrs]:
+                edgeGen =  list(itertools.combinations(keyValueNodes[attrs][attribute],2))+[(uid,uid) for uid in keyValueNodes[attrs][attribute]]
+                for edge in edgeGen:
+                    G.add_edge(edge[0],edge[1])
+                    if G[edge[0]][edge[1]].has_key(attrs):
+                        G[edge[0]][edge[1]][attrs].append(keyValueNodes[attrs][attribute])
+                    else :
+                        G[edge[0]][edge[1]][attrs]=[keyValueNodes[attrs][attribute]]
+    print "done generating graph.."
+    return G
+
+class buildUserSimilarityDictNew(object):
+    '''
+    parllelizing the user profile generation with G object 
+    '''
+    def __init__(self,keyValueNodes, userSequence, userProfiles, dbFileName):
+        nodes = keyValueNodes.keys()
+        self.G = buildGraph(keyValueNodes)
+        self.userProfiles = userProfiles
+        self.dbFileName = dbFileName
+        self.userSimilarity = {}
+        self.userList = userSequence.keys()
+        self.userSequence = userSequence
+        #print self.userSequence
+
+        for user in self.userList:
+            self.userSimilarity[user]={}
+        
+        
+        for user in self.userSequence:
+            #print self.userSequence[user]
+            self.userSequence[user] = [item for item in self.userSequence[user]]
+            #print self.userSequence[user]
+            
+    def computeSimilarity(self, user1, user2, user1items, user2items):
+        intersectingItems = list(user1items.intersection(user2items))
+        unionItems = list(user1items.union(user2items))
+        intersectingItemsPair = list(itertools.combinations(intersectingItems,2))
+        unionItemsPair = list(itertools.combinations(unionItems,2))
+        diffItemsPair = list(set(unionItemsPair) - set(intersectingItemsPair))
+        
+        del unionItemsPair
+        
+        numerator = 0.0
+        denominator = 0.0
+
+        for edge in intersectingItemsPair:
+            node1 = edge[0]
+            node2 = edge[1]
+            for attr in self.G[node1][node2] :
+                increment = 0
+                for value in self.G[node1][node2][attr]:
+                    if value != "@RAI":
+                        increment += self.userProfiles[user1]["weights"][attr][value] + self.userProfiles[user2]["weights"][attr][value]
+                numerator += increment * (self.userProfiles[user1]["weights"][attr]["@RAI"] + self.userProfiles[user2]["weights"][attr]["@RAI"])
+                denominator += increment * (self.userProfiles[user1]["weights"][attr]["@RAI"] + self.userProfiles[user2]["weights"][attr]["@RAI"])
+
+        for edge in diffItemsPair:
+            node1 = edge[0]
+            node2 = edge[1]
+            for attr in self.G[node1][node2]:
+                increment = 0
+                for value in self.G[node1][node2][attr]:
+                    if value != "@RAI":
+                        increment += self.userProfiles[user1]["weights"][attr][value] + self.userProfiles[user2]["weights"][attr][value]
+                denominator += increment * (self.userProfiles[user1]["weights"][attr]["@RAI"] + self.userProfiles[user2]["weights"][attr]["@RAI"])
+
+        self.userSimilarity[user1][user2] = [numerator, denominator]
+        print self.userSimilarity[user1][user2]
+        raw_input("dbg1")
+    
+    def buildSimilarity(self):
+        count = 0
+        totalUsers = float(len(self.userList) * (len(self.userList) - 1) / 2)
+        for user1 in self.userList:
+            self.userSimilarity[user1] = {}
+            user1items = set([movie for movie, rating in self.userSequence[user1]])
+            for user2 in self.userList[self.userList.index(user1)+1:]:
+                count += 1
+                user2items = set([movie for movie, rating in self.userSequence[user2]])
+                #self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
+                if count % 1000 :
+                    print "Progress : " , count/totalUsers 
+                #print user1items
+                #print user2items
+                self.computeSimilarity(user1, user2, user1items, user2items)
+
+        print "writing " + self.dbFileName + "_userSimilarity.json"
+        f = open(self.dbFileName+"_userSimilarity.json","w")
+        f.write(json.dumps(self.userSimilarity))
+        f.close()
+        print "done writing " + self.dbFileName + "_userSimilarity.json"
+
+def buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim):
     '''
     G (networkx object): The Graph of items
     userSequence (dictionary) : dictionary of users, with their movie watching sequences
@@ -592,45 +713,72 @@ def tweakAlpha(userProfile):
     """
     pass
 
-def tweakWeights(G, userProfile, itemSequence):
+def tweakWeights(keyValueNodes, userProfile, itemSequence):
     """
-        G: Item Graph
-        userProfile: A dictionary for individual users. It contains two keys, alpha and weights
         itemSequence: A list of tuples of the form (item, rating)
     """
 
     #get the list of items that the user is associated with
-    items = [item for item, rating in itemSequence]
+    itemRating = dict(itemSequence)
+    items = set(itemRating.keys())
+    userProfileWeights = {}
+    for attrib in keyValueNodes:
+        userProfileWeights[attrib] = {}
+        for value in keyValueNodes[attrib]:
+            intersectionNodes = list(items.intersection(set(keyValueNodes[attrib][value]))) 
+            itemPair = itertools.combinations(intersectionNodes,2)
+            if attrib=="title" and len(intersectionNodes)>1:
+               print intersectionNodes
 
-    #G.subgraph() function removes the attributes of the node. Since we do not want that to happen, I've written a function that does it. I couldnt figure out a networkx alternative which might be more efficient.
-    H = G.subgraph(items)
-    #get the relative weights of the user towards each attribute
-    for node in H.nodes():
-        neighbors = H.neighbors(node)
-        neighbors.remove(node)
-        for neighbor in neighbors: #scores must be updated from each individual neighbor. This would also mean that the weights would be added twice. But that wouldnt be a problem since we're normalizing it later on.
-            #the weight for each attribute must be computed. Hence iterate through the edge attributes, find out the number of common attribute-value pairs for each attribute. If the userProfiles have been updated for the first time, initialize it with the formula. If the attribute has already been updated once, then increment the weights correspondingly.
-            for attrib in H[node][neighbor]:
-                numOfCommonAttribs = len(H[node][neighbor][attrib])
-                if userProfile["weights"].has_key(attrib):
-                    userProfile["weights"][attrib] += numOfCommonAttribs
-                    #userProfile["weights"][attrib] += numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
-                else:
-                    userProfile["weights"][attrib] = numOfCommonAttribs
-                    #userProfile["weights"][attrib] = numOfCommonAttribs*(1.0/len(H[node][attrib]) + 1.0/len(H[neighbor][attrib]))
+            tempValue = sum([ int(itemRating[item1])+int(itemRating[item2]) for item1,item2 in itemPair ])
+            if tempValue :
+                userProfileWeights[attrib][value] = tempValue
+
+            #print userProfileWeights[attrib][value]
+            #print attrib,value
+            #raw_input()
+        sumAttrib = float(sum(userProfileWeights[attrib].values()))
+        for value in userProfileWeights[attrib]:
+            userProfileWeights[attrib][value] /= sumAttrib
+
+        userProfileWeights[attrib]["@RAI"] = sumAttrib
+
+
+    sumOfWeights = float(sum([userProfileWeights[attrib]["@RAI"] for attrib in userProfileWeights]))
+    userProfile["weights"] = userProfileWeights
+    for attrib in userProfile["weights"]:
+        userProfile["weights"][attrib]["@RAI"] /= sumOfWeights
+
 
     #we still have to normalize the weights, which is done after the function returns
 
-def getEdges(G):
-    edges = G.edges()    
-    temp = []
-    for edge in edges:
-        #if type(edge[0]) == int and type(edge[1]) == int:
-        if edge[1].isdigit():
-            temp.append(edge)
-    #print temp
-    #raw_input("dbg1")
-    return temp
+def normalizeWeights(userProfiles, keyValueNodes, datatype):
+    """
+        userProfiles (dictionary) : contains userProfiles each containing 2 keys, alpha and weights
+        keyValueNodes 
+        Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
+    """
+
+    attribRange = {}
+    for key in keyValueNodes:
+        attribRange[key] = len(keyValueNodes[key])
+
+    for profile in userProfiles:
+        for attrib in userProfiles[profile]["weights"]:
+            for value in userProfiles[profile]["weights"][attrib]:
+                if value != "@RAI":
+                    userProfiles[profile]["weights"][attrib][value] *= len(keyValueNodes[attrib][value])
+            userProfiles[profile]["weights"][attrib]["@RAI"] *= attribRange[attrib]
+
+    for profile in userProfiles:
+        sumOfAttribWeights = float(sum( [userProfiles[profile]["weights"][attrib]["@RAI"] for attrib in userProfiles[profile]["weights"] ]))
+        for attrib in userProfiles[profile]["weights"]:
+            userProfiles[profile]["weights"][attrib]["@RAI"] /= sumOfAttribWeights
+            sumOfValueWeights = float(sum([ userProfiles[profile]["weights"][attrib][value] for value in userProfiles[profile]["weights"][attrib] if value!="@RAI"] ))
+            for value in userProfiles[profile]["weights"][attrib]:
+                if value!="@RAI" :
+                    userProfiles[profile]["weights"][attrib][value] /= sumOfValueWeights
+
 
 def clustersByKMeans(inp, numOfClusters):
     data = numpy.ndarray( (len(inp),1), buffer=numpy.array(inp), dtype=float)
@@ -646,10 +794,13 @@ def clustersByKMeans(inp, numOfClusters):
     retVal = retVal.values()
     return retVal
 
+def findClusterQuality(numOfCluster, inp, v):
+    #sys.stdout.write('\b'*10)
+    #sys.stdout.write(str(numOfCluster))
 
-def functionVijay(inp,numOfCluster):
-    mIntra = 0
+    print "numOfCluster for the thread: ", numOfCluster
     n = len(inp)
+    mIntra = 0
     clusters = clustersByKMeans(inp, numOfCluster)
     clusters = [cluster for cluster in clusters if cluster != []]
     for cluster in clusters:
@@ -664,120 +815,140 @@ def functionVijay(inp,numOfCluster):
         for j in range(i+1, len(centroids)):
             mInterList.append( pow(centroids[i] - centroids[j], 2) )
     mInter = min(mInterList)
-    return (mIntra/mInter,numOfCluster)
 
-def functionVijayMain(Qu,inp,numOfCluster):
-    Qu.put(functionVijay(inp,numOfCluster))
+    v.append( (mIntra / mInter, numOfCluster) )
 
 def optimumClusters(inp):
     numOfClusters = range(2, len(inp))
-    n = len(inp)
+    
     v = []
-    Qu = Queue()
-    Procs = []
-
+    threads = []
     for numOfCluster in numOfClusters:
-        Procs.append(Process(target=functionVijayMain, args=(Qu,inp,numOfCluster)))
+        threads.append(threading.Thread(target=findClusterQuality, args=(numOfCluster, inp, v)))
 
-    for pro in Procs:
-        pro.start()
+    for thread in threads:
+        thread.start()
 
-    while not Qu.empty():
-        fis = Qu.get()
-        print fis
-        v.append(fis)
+    count = 0
+    for thread in threads:
+        thread.join()
+        print float(count) / len(threads)
+        count += 1
 
     optimumNumber = min(v)[1]
     clusters = clustersByKMeans(inp, optimumNumber)
     clusters = [cluster for cluster in clusters if cluster != []]
     return clusters
 
-def normalizeWeights(userProfiles, keyValueNodes, datatype):
-    """
-        userProfiles (dictionary) : contains userProfiles each containing 2 keys, alpha and weights
-        keyValueNodes 
-        Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
-    """
-    attribRange = {}
-    for key in keyValueNodes:
-        if datatype[key] == "string" or datatype[key] == "bool":
-            attribRange[key] = len(keyValueNodes[key])
-            print key, datatype[key], attribRange[key]
-        else:
-            inp = [float(value) for value in keyValueNodes[key]]
-            print "-------------", len(inp)
-            attribRange[key] = len(optimumClusters(inp))
-            print key, datatype[key], attribRange[key]
+def findRange(key, datatype, keyValueNodes, attribRange):
+    attribRange[key] = len(keyValueNodes[key])
+    '''
+    if datatype[key] == "string" or datatype[key] == "bool":
+        attribRange[key] = len(keyValueNodes[key])
+    else:
+        inp = [float(value) for value in keyValueNodes[key]]
 
-    #compute the range of values for categorical and non-categorical attributes
+        dist = [ (inp[i+1] - inp[i]) for i in range(len(inp) - 1)]
+        avrg = numpy.average(dist)
 
-    for profile in userProfiles:
-        for attrib in userProfiles[profile]["weights"]:
-            userProfiles[profile]["weights"][attrib] *= attribRange[attrib]
+        clusters = []
+        cluster = []
+        for i in range(len(dist)):
+            if dist[i] < avrg:
+                cluster.append(inp[i])
+            elif cluster != []:
+                clusters.append(cluster)
+                cluster = []
 
-    for profile in userProfiles:
-        sumOfWeights = float(sum(userProfiles[profile]["weights"].values()))
-        for attr in userProfiles[profile]["weights"]:
-            userProfiles[profile]["weights"][attr] /= sumOfWeights
+        #attribRange[key] = len(optimumClusters(inp))
+        attribRange[key] = len(clusters)
+    '''
 
-def attributeRelativeImportance(dbFileName):
+def attributeRelativeImportance(dbFileName, dynamicPlot=False):
     """
         In order to determine the relative importance of each attribute, we take the average out the attribute's weight from the all the users.
     """
-    f = open(dbFileName + "_userProfiles.pickle", "r")
-    userProfiles = pickle.loads(f.read())
+    f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
+    userProfiles = json.loads(f.read())
     f.close()
     
-    '''
+    if dynamicPlot:
+        pl.ion()
+        fig = pl.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.set_ylabel("weights")
+        ax.set_title("Dynamic Plotting of the convergence of the weights progressively")
+        width = 0.2
 
-    pl.ion()
-    fig = pl.figure()
-    ax = fig.add_subplot(1,1,1)
-
-    '''
-
-    avg = {}
+    weights = {}
+    count = 0
+    numOfUsers = len(userProfiles)
     for userProfile in userProfiles:
+        count += 1
         for attr in userProfiles[userProfile]["weights"]:
-            if avg.has_key(attr):
-                avg[attr] += userProfiles[userProfile]["weights"][attr]
-            else:
-                avg[attr] = userProfiles[userProfile]["weights"][attr]
+            try:
+                weights[attr] += userProfiles[userProfile]["weights"][attr]["@RAI"]
+            except KeyError:
+                weights[attr] = userProfiles[userProfile]["weights"][attr]["@RAI"]
 
-        x = []
-        y = []
-        sumOfWeights = sum(avg.values())
-        for attr in avg:
-            x.append(attr)
-            y.append(avg[attr] / float(sumOfWeights))
+        if dynamicPlot:
+            x = []
+            y = []
+            sumOfWeights = float(sum(weights.values()))
+            #print sumOfWeights, "this should be an integer, incrementing by 1 at every step."
+            #raw_input()
+            for attr in weights:
+                x.append(attr)
+                y.append(weights[attr] / sumOfWeights)
 
-        '''
-        ax.clear()
-        ax.plot(y)
-        for i in range(len(y)):
-            if y[i] > 0.025:
-                ax.text(i, y[i], x[i])
+            ax.clear()
+            xPos = numpy.arange(len(weights))
+            rects0 = ax.bar(xPos, y, width, color='#FF3300')
+            ax.set_xticks(xPos + width)
+            ax.set_xticklabels(x)
+            #ax.legend( (rects0[0],), ('relative Attribute importance',) )
+            ax.text(0,0.3,"fractional completion: " + str(count / float(numOfUsers)))
+            pl.draw()
 
-        pl.draw()
-        pl.savefig(dbFileName + "_itemDimensionalityReduction.png")
-        #time.sleep(0.001)
-        '''
+    for attr in weights:
+        weights[attr] = weights[attr] / numOfUsers
 
-    '''
-    itemPairs = avg.items()
-    x = [x1 for x1,y1 in itemPairs]
-    y = [y1 for x1,y1 in itemPairs]
+    f = open(dbFileName + "_attributeRelativeImportance.json", "w")
+    f.write(json.dumps(weights))
+    f.close()
+
+def valueRelativeImportance(dbFileName):
+    """
+        In order to determine the relative importance of each attribute, we take the average out the attribute's weight from the all the users.
+    """
+    f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
+    userProfiles = json.loads(f.read())
+    f.close()
     
-    for xcoord in range(len(y)):
-        if y[xcoord] > 0.025:
-            plt.text(xcoord, y[xcoord], x[xcoord])
+    weights = {}
+    count = 0
+    numOfUsers = len(userProfiles)
+    
+    for userProfile in userProfiles:
+        count += 1
+        for attr in userProfiles[userProfile]["weights"]:
+            if not weights.has_key(attr):
+                weights[attr]={}
 
-    plt.plot(y)
-    plt.show()
-    '''
+            for value in userProfiles[userProfile]["weights"][attr]:
+                if value != "@RAI":
+                    try:
+                        weights[attr][value] += userProfiles[userProfile]["weights"][attr][value]
+                    except KeyError:
+                        weights[attr][value] = userProfiles[userProfile]["weights"][attr][value]
 
-    f = open(dbFileName + "_attributeRelativeImportance.pickle", "w")
-    f.write(pickle.dumps(avg))
+    for attr in weights:
+        for value in weights[attr]:
+            if value != "@RAI":
+                weights[attr][value] = weights[attr][value] / numOfUsers
+
+    f = open(dbFileName + "_valueRelativeImportance.json", "w")
+    f.write(json.dumps(weights))
     f.close()
 
 #os.system("python modules.py --db=movielens --usageData=movielens_userData.json -userProfiles -reduceDimensions -userSimilarity=6040 -formClusters=0.8")
@@ -854,7 +1025,7 @@ def reverseMapping(JSONdb):
     f.close()
     return reverseEnum
 
-def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
+def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=None, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
     dbFileName = ""
     if db:
         dbFileName = db
@@ -869,12 +1040,13 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         print "please specify the usagedata file name"
         exit()
 
+
     if buildGraph:
         #print "have to build graph"        
         #in case the graph isnt availble, write the learnt graph into a file called GraphDB.pickle
         #comment this out when you already have a learnt graph
         print "building graph from", dbFileName
-        learnGraph(dbFileName, edgeList=False)
+        learnGraph(dbFileName, edgeList=False) #As of now, edgeList=True doesnt work coz it needs the graph object to be built.
         print "done with building graph.."
         
     #load the type Info into an object
@@ -888,11 +1060,13 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
 
     #load the reverse enumerations
     enumRev = reverseMapping(dbFileName)
-        
+    
+    '''
     #load the graph onto an object
     print "reading Graph"
     G = constructGraph(keyValueNodes, enum, datatype)
     print "done reading Graph"
+    '''
 
     # load the userSequence onto an object
     print "reading usage data"
@@ -905,6 +1079,50 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
     # userSequence = dict(random.sample(userSequence.items(),500))
     print "done using reading usage data"
     
+    if cleanUniqueAttribs:
+        uniqueList = {}
+        for attrib in cleanUniqueAttribs:
+            uniqueList[attrib] = []
+            for value in keyValueNodes[attrib]:
+                if len(keyValueNodes[attrib][value])>1:
+                    uniqueList[attrib].append(keyValueNodes[attrib][value])
+
+        copyKeyValueNodes = copy.deepcopy(keyValueNodes)
+        idMapping = {}
+        for attrib in uniqueList:
+            for aliases in uniqueList[attrib]:
+                for itemid in aliases[1:] :
+                    idMapping[itemid] = aliases[0]
+
+        for attrib in keyValueNodes:
+            for value in keyValueNodes[attrib]:
+                for item in keyValueNodes[attrib][value]:
+                    if item in idMapping:
+                        copyKeyValueNodes[attrib][value].remove(item)
+                        copyKeyValueNodes[attrib][value].append(idMapping[item])
+                copyKeyValueNodes[attrib][value] = list(set(copyKeyValueNodes[attrib][value])) 
+        
+        copyUserSequence = copy.deepcopy(userSequence)
+        for user in userSequence:
+            ItemRating = dict(userSequence[user])
+            for itemid in idMapping:
+                if ItemRating.has_key(itemid):
+                    rating = ItemRating.pop(itemid)
+                    ItemRating[idMapping[itemid]] = rating
+            copyUserSequence[user] = ItemRating.items() 
+
+        keyValueNodes = copyKeyValueNodes
+        userSequence = copyUserSequence
+        f = open(dbFileName+"_keyValueNodes.json","w")
+        f.write(json.dumps(keyValueNodes))
+        f.close()
+
+        f = open(dbFileName+"_userData.json","w")
+        for user in userSequence:
+            f.write(json.dumps({user:userSequence[user]}) + "\n")
+        f.close()
+
+
     if generateSequence:
         print "generating user sequence.."
         numberOfUsers = generateSequence[0]
@@ -922,50 +1140,69 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         # each user is associated with his/her own alpha and the attribute importance list
         print "\ncreating userProfiles.."
         userProfiles = {}
+
         count = 0
         numOfUsers = float(len(userSequence))
+        threads = []
         for sequence in userSequence:
-            if count == 50:
-                break
             # initializing alpha, weight vector to each user
-            print "percentage completion: ", count / numOfUsers, count
             count += 1
+            print count
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
-            tweakWeights(G, userProfiles[sequence], userSequence[sequence])
+            
+            #threads.append(threading.Thread(target=tweakWeights, args=(keyValueNodes, userProfiles[sequence], userSequence[sequence])))
+            tweakWeights(keyValueNodes, userProfiles[sequence], userSequence[sequence])
 
-        f = open(dbFileName + "_userProfiles_beforeNorming.pickle", "w")
-        f.write(pickle.dumps(userProfiles))
+        """
+        count = 0
+        numOfUsers = float(len(threads))        
+        for thread in threads:
+            print "starting thread", count
+            thread.start()  
+            count += 1
+
+        count = 0
+        numOfUsers = float(len(threads))
+        for thread in threads:
+            thread.join()
+            print "percentage completion: ", count / numOfUsers
+            count += 1
+
+        """
+        f = open(dbFileName + "_userProfiles_beforeNorming.json", "w")
+        f.write(json.dumps(userProfiles))
         f.close()
+    
 
-        normalizeWeights(userSequence, keyValueNodes, datatype)
+        print " normalizing weights.."
+        normalizeWeights(userProfiles, keyValueNodes, datatype)
+        print " done normalizing weights.."
         
-        f = open(dbFileName + "_userProfiles.pickle", "w")
-        f.write(pickle.dumps(userProfiles))
+        f = open(dbFileName + "_userProfiles_afterNorming.json", "w")
+        f.write(json.dumps(userProfiles))
         f.close()
         print "done creating userProfiles.."
 
     #load the userProfiles onto an object
-    f = open(dbFileName + "_userProfiles.pickle", "r")
-    userProfiles = pickle.loads(f.read())
+    f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
+    userProfiles = json.loads(f.read())
     f.close()
 
-    if reduceDimensions:
-        #print "have to reduce dimensions"
-        
+    if reduceDimensions:        
         #Dimensionality Reduction
         #find out the relative importance of the attributes, by considering the attribute's relative importance from all users. write the file to attributeRelativeImportance.pickle
         print "\nreducing dimensions"
-        attributeRelativeImportance(dbFileName)
+        attributeRelativeImportance(dbFileName, dynamicPlot=False)
+        valueRelativeImportance(dbFileName)
         print "done reducing dimensions"
         
     if userSimilarity:
         #print "have to compute user similarity"
-        upperlim = userSimilarity
-
         print "building user similarity"
-        buildUserSimilarityDict(G, userSequence, userProfiles, dbFileName, upperlim)
+        #buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim)
+        buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName).buildSimilarity()
         print "done building user similarity"
 
     f = open(dbFileName + "_userSimilarity.pickle", "r")
@@ -1072,4 +1309,7 @@ def mae(db=None, testData=None):
     return mae
 
 if __name__ == "__main__":
-    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", userProfiles=True)
+    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", userSimilarity=True)
+    
+
+#cleanUniqueAttribs=["imdb_id","title"]

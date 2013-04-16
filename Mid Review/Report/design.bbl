@@ -1,0 +1,68 @@
+\begin{thebibliography}{10}
+
+\bibitem{fabian}
+Fabian Abel, Qi~Gao, Geert-Jan Houben, and Ke~Tao.
+\newblock Analyzing temporal dynamics in twitter profiles for personalized
+  recommendations in the social web.
+\newblock In {\em ACM WebSci'11}, pages 1--8, 2011.
+
+\bibitem{toine}
+Toine Bogers.
+\newblock Movie recommendation using random walks over the contextual graph.
+\newblock In {\em CARS'10: Proceedings of the 2nd workshop on context-aware
+  recommender systems}, 2010.
+
+\bibitem{durao}
+Frederico Durao and Peter Dolog.
+\newblock Personalized tag-based recommendation in social web systems.
+\newblock In {\em CEUR Workshop Proceedings}, volume 485, pages 40--49, 2009.
+
+\bibitem{ziyu}
+Ziyu Guan, Jiajun Bu, Qiaozhu Mei, Chun Chen, and Can Wang.
+\newblock Personalized tag recommendation using graph-based ranking on
+  multi-type interrelated objects.
+\newblock In {\em Proceedings of the 32nd international ACM SIGIR conference on
+  Research and development in information retrieval. ACM}, 2009.
+
+\bibitem{hill}
+W.~Hill, Stead L., Rosenstein M., and Furnas G.
+\newblock Recommending and evaluating choices in a virtual community of use.
+\newblock In {\em Proceedings of CHI, '95}, 1995.
+
+\bibitem{konstan}
+Konstan J., Miller B., Maltz. D., Herlocker J., Gordon L., and Reidl J.
+\newblock Grouplens: Applying collaborative filtering to usenet news.
+\newblock Communications of the ACM, 40(3), pages 77--87, 1997.
+
+\bibitem{resnick}
+Resnick P., Lacovou N., Suchak M., Bergstrom P., and Reidl J.
+\newblock Grouplens: An open architecture for collaborative filtering of
+  netnews.
+\newblock In {\em proceedings of CSCW '94, Chapel Hill, NC}, 1994.
+
+\bibitem{breese}
+Breese~J S, Heckerman D, , and Kadie C.
+\newblock Empirical analysis of predictive algorithms for collaborative
+  filtering.
+\newblock In {\em Proceedings of 14th Conference on Uncertainty in Aritficial
+  Intelligence}, pages 43--52, 1998.
+
+\bibitem{sarwar}
+Badrul Sarwar, George Karypis, Joseph Konstan, and John Riedl.
+\newblock Item-based collaborative filtering recommendation algorithms.
+\newblock In {\em 10th international conference on World Wide Web}, pages
+  285--295, 2001.
+
+\bibitem{andriy}
+Andriy Shepitsen, Jonathan Gemmell, Bamshad Mobasher, and Robin Burke.
+\newblock Personalized recommendation in social tagging systems using
+  hierarchical clustering.
+\newblock In {\em ACM conference on Recommender systems}, pages 259--266, 2008.
+
+\bibitem{shardanand}
+Shardanand U. and Maes P.
+\newblock Social information filtering: Algorithms for automating 'word of
+  mouth'.
+\newblock In {\em Proceedings of CHI '95. Denver CO.}, 1995.
+
+\end{thebibliography}
