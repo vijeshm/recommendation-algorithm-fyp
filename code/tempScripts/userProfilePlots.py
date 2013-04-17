@@ -16,11 +16,11 @@ afterNorm = json.loads(f.read())
 f.close()
 
 attribs = beforeNorm[userID]["weights"].keys()
-weightsBefore = beforeNorm[sys.argv[1]]["weights"].values()
+weightsBefore = [beforeNorm[sys.argv[1]]["weights"][attrib]["@RAI"] for attrib in attribs]
 sumOfWeights = float(sum(weightsBefore))
 weightsBefore = [weight / sumOfWeights for weight in weightsBefore]
 
-weightsAfter = afterNorm[userID]["weights"].values()
+weightsAfter = [afterNorm[userID]["weights"][attrib]["@RAI"] for attrib in attribs]
 weightsEqual = [1.0/len(attribs)]*len(attribs)
 
 fig = plt.figure()

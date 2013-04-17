@@ -222,9 +222,9 @@ class buildUserSimilarityDictNew(object):
     '''
     parllelizing the user profile generation with G object 
     '''
-    def __init__(self,keyValueNodes, userSequence, userProfiles, dbFileName):
+    def __init__(self, keyValueNodes, userSequence, userProfiles, dbFileName):
         nodes = keyValueNodes.keys()
-        self.G = buildGraph(keyValueNodes)
+        #self.G = buildGraph(keyValueNodes)
         self.userProfiles = userProfiles
         self.dbFileName = dbFileName
         self.userSimilarity = {}
@@ -235,10 +235,9 @@ class buildUserSimilarityDictNew(object):
         for user in self.userList:
             self.userSimilarity[user]={}
         
-        
         for user in self.userSequence:
             #print self.userSequence[user]
-            self.userSequence[user] = [item for item in self.userSequence[user]]
+            self.userSequence[user] = [item for item, rating in self.userSequence[user]]
             #print self.userSequence[user]
             
     def computeSimilarity(self, user1, user2, user1items, user2items):
@@ -283,13 +282,12 @@ class buildUserSimilarityDictNew(object):
         totalUsers = float(len(self.userList) * (len(self.userList) - 1) / 2)
         for user1 in self.userList:
             self.userSimilarity[user1] = {}
-            user1items = set([movie for movie, rating in self.userSequence[user1]])
+            user1items = set([item for item, rating in self.userSequence[user1]])
             for user2 in self.userList[self.userList.index(user1)+1:]:
                 count += 1
-                user2items = set([movie for movie, rating in self.userSequence[user2]])
+                user2items = set([item for item, rating in self.userSequence[user2]])
                 #self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
-                if count % 1000 :
-                    print "Progress : " , count/totalUsers 
+                print "Progress : " , count / totalUsers
                 #print user1items
                 #print user2items
                 self.computeSimilarity(user1, user2, user1items, user2items)
@@ -724,25 +722,27 @@ def tweakWeights(keyValueNodes, userProfile, itemSequence):
     userProfileWeights = {}
     for attrib in keyValueNodes:
         userProfileWeights[attrib] = {}
+        userProfileWeights[attrib]["@RAI"] = 0
         for value in keyValueNodes[attrib]:
-            intersectionNodes = list(items.intersection(set(keyValueNodes[attrib][value]))) 
-            itemPair = itertools.combinations(intersectionNodes,2)
-            if attrib=="title" and len(intersectionNodes)>1:
-               print intersectionNodes
+            intersectionNodes = list(items.intersection(set(keyValueNodes[attrib][value])))
+            itemPair = itertools.combinations(intersectionNodes, 2)
 
-            tempValue = sum([ int(itemRating[item1])+int(itemRating[item2]) for item1,item2 in itemPair ])
-            if tempValue :
+            tempValue = 0
+            for item1, item2 in itemPair:
+                increment = float(itemRating[item1]) + float(itemRating[item2])
+                tempValue += increment
+                userProfileWeights[attrib]["@RAI"] += increment
+
+            if tempValue:
                 userProfileWeights[attrib][value] = tempValue
 
-            #print userProfileWeights[attrib][value]
-            #print attrib,value
-            #raw_input()
-        sumAttrib = float(sum(userProfileWeights[attrib].values()))
-        for value in userProfileWeights[attrib]:
-            userProfileWeights[attrib][value] /= sumAttrib
+        if len(userProfileWeights[attrib].keys()) > 1:
+            sumAttrib = float(sum(userProfileWeights[attrib].values()) - userProfileWeights[attrib]["@RAI"])
+            for value in userProfileWeights[attrib]:
+                if value != "@RAI":
+                    userProfileWeights[attrib][value] /= sumAttrib
 
-        userProfileWeights[attrib]["@RAI"] = sumAttrib
-
+        #userProfileWeights[attrib]["@RAI"] = sumAttrib
 
     sumOfWeights = float(sum([userProfileWeights[attrib]["@RAI"] for attrib in userProfileWeights]))
     userProfile["weights"] = userProfileWeights
