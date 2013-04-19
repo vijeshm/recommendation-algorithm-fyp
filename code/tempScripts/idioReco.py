@@ -1,5 +1,8 @@
 import sys
 import json
+import matplotlib.pyplot as plt
+import math
+import numpy
 
 uid = sys.argv[1]
 
@@ -76,6 +79,12 @@ def egocentricRecommendation(keyValueNodes, userSequence, dbFileName, uid, userW
     for key in keyValueNodes:
         for value in keyValueNodes[key]:
             if value in userWeights["after"][key]:
+                '''
+                if key != "rating":
+                    print key, userWeights["after"][key]["@RAI"], value, userWeights["after"][key][value]
+                    print userWeights["after"][key][value] * ( userWeights["after"][key]["@RAI"] ** 2 )
+                    #raw_input("dbg2")
+                '''
                 for userNode in userSequenceRating:
                     if userNode in keyValueNodes[key][value]:
                         for node in keyValueNodes[key][value]:
@@ -93,21 +102,46 @@ def egocentricRecommendation(keyValueNodes, userSequence, dbFileName, uid, userW
                                 print "weight for the key:", userWeights["after"][key][value], userWeights["before"][key][value]
                                 print "product: ", userWeights["after"][key][value] * userWeights["after"][key]["@RAI"], userWeights["before"][key][value] * userWeights["before"][key]["@RAI"]
                                 print "accumulated so far:", impact["after"][userNode][node], impact["before"][userNode][node]
-                                raw_input("dbg1\n")
-
-
+                                #raw_input("dbg1\n")
 
     for category in impact:
         for userNode in impact[category]:
             for node in impact[category][userNode]:
                 score[category][node].append((float(userSequenceRating[userNode]), userNode, impact[category][userNode][node]))
 
+    predictions = {}
     for node in nodes:
-        if node in testNodes:
-            print node
+        #if node in testNodes or node in userSequenceRating:
+        if True:
+            if node in userSequenceRating:
+                #print node, userSequenceRating[node]
+                pass
+            else:
+                #print node
+                pass
+
             score["after"][node].sort()
             score["before"][node].sort()
 
+            avrg = {}
+            for entry in score["after"][node]:
+                try:
+                    avrg[entry[0]].append(entry[2])
+                except KeyError:
+                    avrg[entry[0]] = [entry[2]]
+            counts = {rating:len(avrg[rating]) for rating in avrg}
+            avrg = {rating:numpy.average(avrg[rating]) for rating in avrg}
+            total = float(sum(avrg.values()))
+            prob = {rating:avrg[rating]/total*counts[rating] for rating in avrg}
+            print prob
+            #raw_input()
+            rating = max([ (probability, rating) for rating, probability in prob.items()])[1]
+            #print node, rating
+            predictions[node] = rating
+
+            '''
+            x = []
+            y = []
             r = score["after"][node][0][0]
             count = 0
             s = 0
@@ -121,16 +155,22 @@ def egocentricRecommendation(keyValueNodes, userSequence, dbFileName, uid, userW
                     s += entry[2]
                     count += 1
                 print entry
+                x.append(entry[0])
+                y.append(entry[2])
+            plt.plot(x, y, 'ro')
+            plt.show()
             print s / count, relFreqOfRating[str(int(r))], s / count * relFreqOfRating[str(int(r))]
             print ""
             sumOfWeights = sum([weight for rating, userNode, weight in score["after"][node]])
             avrg = sum([weight*rating for rating, userNode, weight in score["after"][node]]) / sumOfWeights
-            #print avrg
-            #raw_input()
+            '''
 
     for node in nodes:
-        score["after"][node] = sum([weight*rating for rating, userNode, weight in score["after"][node]]) / sum([weight for rating, userNode, weight in score["after"][node]])
-        score["before"][node] = sum([weight*rating for rating, userNode, weight in score["before"][node]]) / sum([weight for rating, userNode, weight in score["before"][node]])
+        score["after"][node] = predictions[node]
+        score["before"][node] = predictions[node]
+
+        #score["after"][node] = sum([weight*rating for rating, userNode, weight in score["after"][node]]) / sum([weight for rating, userNode, weight in score["after"][node]])
+        #score["before"][node] = sum([weight*rating for rating, userNode, weight in score["before"][node]]) / sum([weight for rating, userNode, weight in score["before"][node]])
 
     for item, rating in userSequence:
         score["after"].pop(item)
