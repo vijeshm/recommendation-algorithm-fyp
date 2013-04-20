@@ -9,10 +9,8 @@ for line in fin:
     out = {}
     out["id"] = [count]
     for key in jsonObj:
-        if key!="poster" and key!="imdb_url" and key!="plot_simple" and key!="runtime" and key!="release_date" and key!="also_known_as" and key!="episodes":
-            if key=="filming_locations":
-                out[key] = jsonObj[key].replace(" ", "").split(",")
-            elif key=="rating" or key=="rated" or key=="title" or key=="rating_count" or key=="year" or key=="type" or key=="imdb_id":
+        if key!="rating_count" and key!="poster" and key!="imdb_url" and key!="plot_simple" and key!="runtime" and key!="release_date" and key!="also_known_as" and key!="episodes":
+            if key=="rating" or key=="rated" or key=="title" or key=="rating_count" or key=="year" or key=="type" or key=="imdb_id" or key=="filming_locations":
                 out[key] = [jsonObj[key]]
             else:
                 out[key] = jsonObj[key]

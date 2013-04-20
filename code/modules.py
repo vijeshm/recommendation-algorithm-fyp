@@ -222,26 +222,22 @@ class buildUserSimilarityDictNew(object):
     '''
     parllelizing the user profile generation with G object 
     '''
-    def __init__(self,keyValueNodes, userSequence, userProfiles, dbFileName):
+    def __init__(self, keyValueNodes, userSequence, userProfiles, dbFileName):
         nodes = keyValueNodes.keys()
-        self.G = buildGraph(keyValueNodes)
+        #self.G = buildGraph(keyValueNodes)
+        self.keyValueNodes = keyValueNodes
         self.userProfiles = userProfiles
         self.dbFileName = dbFileName
         self.userSimilarity = {}
         self.userList = userSequence.keys()
         self.userSequence = userSequence
-        #print self.userSequence
 
         for user in self.userList:
             self.userSimilarity[user]={}
         
-        
         for user in self.userSequence:
-            #print self.userSequence[user]
-            self.userSequence[user] = [item for item in self.userSequence[user]]
-            #print self.userSequence[user]
+            self.userSequence[user] = [item for item, rating in self.userSequence[user]]
             
-
     def computeSimilarity(self, user1, user2, user1items, user2items):
         intersectingItems = list(user1items.intersection(user2items))
         unionItems = list(user1items.union(user2items))
@@ -257,46 +253,128 @@ class buildUserSimilarityDictNew(object):
         for edge in intersectingItemsPair:
             node1 = edge[0]
             node2 = edge[1]
-            try :
-                for attr in self.G[node1][node2] :
-                    increment = len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
-                    numerator += increment
-                    denominator += increment
-            except KeyError:
-                pass
+            for attr in self.G[node1][node2] :
+                increment = 0
+                for value in self.G[node1][node2][attr]:
+                    if value != "@RAI":
+                        increment += self.userProfiles[user1]["weights"][attr][value] + self.userProfiles[user2]["weights"][attr][value]
+                numerator += increment * (self.userProfiles[user1]["weights"][attr]["@RAI"] + self.userProfiles[user2]["weights"][attr]["@RAI"])
+                denominator += increment * (self.userProfiles[user1]["weights"][attr]["@RAI"] + self.userProfiles[user2]["weights"][attr]["@RAI"])
 
         for edge in diffItemsPair:
             node1 = edge[0]
             node2 = edge[1]
-            try :
-                for attr in self.G[node1][node2]:
-                    denominator += len(self.G[node1][node2][attr]) * (self.userProfiles[node1]["weights"][attr] + self.userProfiles[node2]["weights"][attr])
-            except KeyError:
-                pass
+            for attr in self.G[node1][node2]:
+                increment = 0
+                for value in self.G[node1][node2][attr]:
+                    if value != "@RAI":
+                        increment += self.userProfiles[user1]["weights"][attr][value] + self.userProfiles[user2]["weights"][attr][value]
+                denominator += increment * (self.userProfiles[user1]["weights"][attr]["@RAI"] + self.userProfiles[user2]["weights"][attr]["@RAI"])
 
         self.userSimilarity[user1][user2] = [numerator, denominator]
+        print self.userSimilarity[user1][user2]
+        raw_input("dbg1")
     
     def buildSimilarity(self):
-        count = 0
-        totalUsers = float(len(self.userList) * (len(self.userList) - 1) / 2)
-        for user1 in self.userList:
-            self.userSimilarity[user1] = {}
-            user1items = set([movie for movie, rating in self.userSequence[user1]])
-            for user2 in self.userList[self.userList.index(user1)+1:]:
-                count += 1
-                user2items = set([movie for movie, rating in self.userSequence[user2]])
-                #self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
-                if count % 1000 :
-                    print "Progress : " , count/totalUsers 
-                #print user1items
-                #print user2items
-                self.computeSimilarity(user1, user2, user1items, user2items)
+        itemLookup = {}
+        for user in self.userSequence:
+            for item in self.userSequence[user]:
+                try:
+                    itemLookup[item].append(user)
+                except KeyError:
+                    itemLookup[item] = [user]
+
+        for key in self.keyValueNodes:
+            for value in self.keyValueNodes[key]:
+                for item in self.keyValueNodes[key][value]:
+                    if not itemLookup.has_key(item):
+                        itemLookup[item] = []
+
+        keyCount = 0
+        keyTotal = float(len(self.keyValueNodes))
+        for key in self.keyValueNodes:
+            keyCount += 1
+
+            valueCount = 0
+            valueTotal = float(len(self.keyValueNodes[key]))
+            for value in self.keyValueNodes[key]:
+                valueCount += 1
+
+                combo = list(itertools.combinations(self.keyValueNodes[key][value], 2))
+                pairCount = 0
+                pairTotal = float(len(combo))
+
+                for itemPair in combo:
+                    pairCount += 1
+
+                    usersList1 = set(itemLookup[itemPair[0]])
+                    usersList2 = set(itemLookup[itemPair[1]])
+                    intersection = usersList1.intersection(usersList2)
+                    union = usersList1.union(usersList2)
+                    intersectionPairs = set(itertools.combinations(list(intersection), 2))
+                    unionPairs = set(itertools.combinations(list(union), 2))
+                    diffPairs = unionPairs.difference(intersectionPairs)
+
+                    for userPair in intersectionPairs:
+                        try:
+                            incValue = self.userProfiles[userPair[0]]["weights"][key]["@RAI"] + self.userProfiles[userPair[1]]["weights"][key]["@RAI"]
+                            self.userSimilarity[userPair[0]][userPair[1]]["numerator"] += incValue
+                            self.userSimilarity[userPair[0]][userPair[1]]["denominator"] += incValue
+                        except KeyError:
+                            if not self.userSimilarity.has_key(userPair[0]):
+                                self.userSimilarity[userPair[0]] = {}
+
+                            if not self.userSimilarity[userPair[0]].has_key(userPair[1]):
+                                self.userSimilarity[userPair[0]][userPair[1]] = {}
+        
+                            if not self.userSimilarity[userPair[0]][userPair[1]].has_key("numerator"):
+                                self.userSimilarity[userPair[0]][userPair[1]]["numerator"] = 0
+                                self.userSimilarity[userPair[0]][userPair[1]]["denominator"] = 0
+        
+                            self.userSimilarity[userPair[0]][userPair[1]]["numerator"] += incValue
+                            self.userSimilarity[userPair[0]][userPair[1]]["denominator"] += incValue            
+
+                    for userPair in diffPairs:
+                        try:
+                            self.userSimilarity[userPair[0]][userPair[1]]["denominator"] += self.userProfiles[userPair[0]]["weights"][key]["@RAI"] + self.userProfiles[userPair[1]]["weights"][key]["@RAI"]
+                        except KeyError:
+                            if not self.userSimilarity.has_key(userPair[0]):
+                                self.userSimilarity[userPair[0]] = {}
+
+                            if not self.userSimilarity[userPair[0]].has_key(userPair[1]):
+                                self.userSimilarity[userPair[0]][userPair[1]] = {}
+
+                            if not self.userSimilarity[userPair[0]][userPair[1]].has_key("denominator"):
+                                self.userSimilarity[userPair[0]][userPair[1]]["denominator"] = 0
+        
+                            self.userSimilarity[userPair[0]][userPair[1]]["denominator"] += self.userProfiles[userPair[0]]["weights"][key]["@RAI"] + self.userProfiles[userPair[1]]["weights"][key]["@RAI"]
+                    
+                    print keyCount / keyTotal, valueCount / valueTotal, pairCount / pairTotal
+                print keyCount / keyTotal, valueCount / valueTotal
+            print keyCount / keyTotal
 
         print "writing " + self.dbFileName + "_userSimilarity.json"
         f = open(self.dbFileName+"_userSimilarity.json","w")
         f.write(json.dumps(self.userSimilarity))
         f.close()
         print "done writing " + self.dbFileName + "_userSimilarity.json"
+        #------------------------------------------------------------------------------------------
+
+        '''
+        count = 0
+        totalUsers = float(len(self.userList) * (len(self.userList) - 1) / 2)
+        for user1 in self.userList:
+            self.userSimilarity[user1] = {}
+            user1items = set([item for item, rating in self.userSequence[user1]])
+            for user2 in self.userList[self.userList.index(user1)+1:]:
+                count += 1
+                user2items = set([item for item, rating in self.userSequence[user2]])
+                #self.threads.append(threading.Thread(target=self.computeSimilarity, args=(enumOut[1], enumIn[1], user1items, user2items)))
+                print "Progress : " , count / totalUsers
+                #print user1items
+                #print user2items
+                self.computeSimilarity(user1, user2, user1items, user2items)
+        '''
 
 def buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperlim):
     '''
@@ -717,19 +795,73 @@ def tweakWeights(keyValueNodes, userProfile, itemSequence):
     """
 
     #get the list of items that the user is associated with
-    items = set([item for item, rating in itemSequence])
+    itemRating = dict(itemSequence)
+    items = set(itemRating.keys())
     userProfileWeights = {}
     for attrib in keyValueNodes:
+        userProfileWeights[attrib] = {}
+        userProfileWeights[attrib]["@RAI"] = 0
         for value in keyValueNodes[attrib]:
-            numOfNodes = len(items.intersection(set(keyValueNodes[attrib][value])))
-            try:
-                userProfileWeights[attrib] += numOfNodes * (numOfNodes - 1) / 2
-            except KeyError:
-                userProfileWeights[attrib] = numOfNodes * (numOfNodes - 1) / 2
+            intersectionNodes = list(items.intersection(set(keyValueNodes[attrib][value])))
+            itemPair = itertools.combinations(intersectionNodes, 2)
 
+            tempValue = 0
+            for item1, item2 in itemPair:
+                increment = float(itemRating[item1]) + float(itemRating[item2])
+                tempValue += increment
+                userProfileWeights[attrib]["@RAI"] += increment
+
+            if tempValue:
+                userProfileWeights[attrib][value] = [tempValue, [itemRating[node] for node in intersectionNodes]]
+
+        if len(userProfileWeights[attrib].keys()) > 1:
+            sumAttrib = 0
+            for value in userProfileWeights[attrib]:
+                if value != "@RAI":
+                    sumAttrib += userProfileWeights[attrib][value][0]
+
+            #sumAttrib = float(sum(userProfileWeights[attrib].values()) - userProfileWeights[attrib]["@RAI"])
+            for value in userProfileWeights[attrib]:
+                if value != "@RAI":
+                    userProfileWeights[attrib][value][0] /= sumAttrib
+
+        #userProfileWeights[attrib]["@RAI"] = sumAttrib
+
+    sumOfWeights = float(sum([userProfileWeights[attrib]["@RAI"] for attrib in userProfileWeights]))
     userProfile["weights"] = userProfileWeights
+    for attrib in userProfile["weights"]:
+        userProfile["weights"][attrib]["@RAI"] /= sumOfWeights
+
 
     #we still have to normalize the weights, which is done after the function returns
+
+def normalizeWeights(userProfiles, keyValueNodes, datatype):
+    """
+        userProfiles (dictionary) : contains userProfiles each containing 2 keys, alpha and weights
+        keyValueNodes 
+        Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
+    """
+
+    attribRange = {}
+    for key in keyValueNodes:
+        attribRange[key] = len(keyValueNodes[key])
+
+    for profile in userProfiles:
+        for attrib in userProfiles[profile]["weights"]:
+            for value in userProfiles[profile]["weights"][attrib]:
+                if value != "@RAI":
+                    userProfiles[profile]["weights"][attrib][value][0] *= len(keyValueNodes[attrib][value])
+            userProfiles[profile]["weights"][attrib]["@RAI"] *= attribRange[attrib]
+
+    for profile in userProfiles:
+        sumOfAttribWeights = float(sum( [userProfiles[profile]["weights"][attrib]["@RAI"] for attrib in userProfiles[profile]["weights"] ]))
+        for attrib in userProfiles[profile]["weights"]:
+            userProfiles[profile]["weights"][attrib]["@RAI"] /= sumOfAttribWeights
+            sumOfValueWeights = float(sum([ userProfiles[profile]["weights"][attrib][value][0] for value in userProfiles[profile]["weights"][attrib] if value!="@RAI"] ))
+            for value in userProfiles[profile]["weights"][attrib]:
+                if value!="@RAI" :
+                    userProfiles[profile]["weights"][attrib][value][0] /= sumOfValueWeights
+
 
 def clustersByKMeans(inp, numOfClusters):
     data = numpy.ndarray( (len(inp),1), buffer=numpy.array(inp), dtype=float)
@@ -815,38 +947,6 @@ def findRange(key, datatype, keyValueNodes, attribRange):
         attribRange[key] = len(clusters)
     '''
 
-def normalizeWeights(userProfiles, keyValueNodes, datatype):
-    """
-        userProfiles (dictionary) : contains userProfiles each containing 2 keys, alpha and weights
-        keyValueNodes 
-        Normalize the weights in the weight vector. We'll get the relative importance of each individual attribute is quantified
-    """
-
-    attribRange = {}
-    for key in keyValueNodes:
-        attribRange[key] = len(keyValueNodes[key])
-    '''
-    threads = []
-    for key in keyValueNodes:
-        threads.append(threading.Thread(target=findRange, args=(key, datatype, keyValueNodes, attribRange)))
-
-    for thread in threads:
-        thread.start()
-
-    for thread in threads:
-        thread.join()
-    #compute the range of values for categorical and non-categorical attributes
-    '''
-
-    for profile in userProfiles:
-        for attrib in userProfiles[profile]["weights"]:
-            userProfiles[profile]["weights"][attrib] *= attribRange[attrib]
-
-    for profile in userProfiles:
-        sumOfWeights = float(sum(userProfiles[profile]["weights"].values()))
-        for attr in userProfiles[profile]["weights"]:
-            userProfiles[profile]["weights"][attr] /= sumOfWeights
-
 def attributeRelativeImportance(dbFileName, dynamicPlot=False):
     """
         In order to determine the relative importance of each attribute, we take the average out the attribute's weight from the all the users.
@@ -870,9 +970,9 @@ def attributeRelativeImportance(dbFileName, dynamicPlot=False):
         count += 1
         for attr in userProfiles[userProfile]["weights"]:
             try:
-                weights[attr] += userProfiles[userProfile]["weights"][attr]
+                weights[attr] += userProfiles[userProfile]["weights"][attr]["@RAI"]
             except KeyError:
-                weights[attr] = userProfiles[userProfile]["weights"][attr]
+                weights[attr] = userProfiles[userProfile]["weights"][attr]["@RAI"]
 
         if dynamicPlot:
             x = []
@@ -897,6 +997,40 @@ def attributeRelativeImportance(dbFileName, dynamicPlot=False):
         weights[attr] = weights[attr] / numOfUsers
 
     f = open(dbFileName + "_attributeRelativeImportance.json", "w")
+    f.write(json.dumps(weights))
+    f.close()
+
+def valueRelativeImportance(dbFileName):
+    """
+        In order to determine the relative importance of each attribute, we take the average out the attribute's weight from the all the users.
+    """
+    f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
+    userProfiles = json.loads(f.read())
+    f.close()
+    
+    weights = {}
+    count = 0
+    numOfUsers = len(userProfiles)
+    
+    for userProfile in userProfiles:
+        count += 1
+        for attr in userProfiles[userProfile]["weights"]:
+            if not weights.has_key(attr):
+                weights[attr]={}
+
+            for value in userProfiles[userProfile]["weights"][attr]:
+                if value != "@RAI":
+                    try:
+                        weights[attr][value] += userProfiles[userProfile]["weights"][attr][value]
+                    except KeyError:
+                        weights[attr][value] = userProfiles[userProfile]["weights"][attr][value]
+
+    for attr in weights:
+        for value in weights[attr]:
+            if value != "@RAI":
+                weights[attr][value][0] = weights[attr][value][0] / numOfUsers
+
+    f = open(dbFileName + "_valueRelativeImportance.json", "w")
     f.write(json.dumps(weights))
     f.close()
 
@@ -974,7 +1108,7 @@ def reverseMapping(JSONdb):
     f.close()
     return reverseEnum
 
-def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
+def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=None, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
     dbFileName = ""
     if db:
         dbFileName = db
@@ -1027,6 +1161,47 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
     # userSequence = dict(random.sample(userSequence.items(),500))
     print "done using reading usage data"
     
+    if cleanUniqueAttribs:
+        uniqueList = {}
+        for attrib in cleanUniqueAttribs:
+            uniqueList[attrib] = []
+            for value in keyValueNodes[attrib]:
+                if len(keyValueNodes[attrib][value])>1:
+                    uniqueList[attrib].append(keyValueNodes[attrib][value])
+
+        copyKeyValueNodes = copy.deepcopy(keyValueNodes)
+        idMapping = {}
+        for attrib in uniqueList:
+            for aliases in uniqueList[attrib]:
+                for itemid in aliases[1:] :
+                    idMapping[itemid] = aliases[0]
+
+        for attrib in keyValueNodes:
+            for value in keyValueNodes[attrib]:
+                for item in keyValueNodes[attrib][value]:
+                    if item in idMapping:
+                        copyKeyValueNodes[attrib][value].remove(item)
+                        copyKeyValueNodes[attrib][value].append(idMapping[item])
+                copyKeyValueNodes[attrib][value] = list(set(copyKeyValueNodes[attrib][value])) 
+        
+        copyUserSequence = copy.deepcopy(userSequence)
+        for user in userSequence:
+            ItemRating = dict(userSequence[user])
+            for itemid in idMapping:
+                if ItemRating.has_key(itemid):
+                    rating = ItemRating.pop(itemid)
+                    ItemRating[idMapping[itemid]] = rating
+            copyUserSequence[user] = ItemRating.items() 
+
+        f = open(dbFileName+"_keyValueNodes.json","w")
+        f.write(json.dumps(copyKeyValueNodes))
+        f.close()
+
+        f = open(dbFileName+"_userData.json","w")
+        for user in userSequence:
+            f.write(json.dumps({user:copyUserSequence[user]}) + "\n")
+        f.close()
+
     if generateSequence:
         print "generating user sequence.."
         numberOfUsers = generateSequence[0]
@@ -1051,12 +1226,15 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         for sequence in userSequence:
             # initializing alpha, weight vector to each user
             count += 1
+            print count
             userProfiles[sequence] = {}
             userProfiles[sequence]["alpha"] = 0.5
             userProfiles[sequence]["weights"] = {}  # Key the the attribute and value is the corresponding weight for that attr
             
-            threads.append(threading.Thread(target=tweakWeights, args=(keyValueNodes, userProfiles[sequence], userSequence[sequence])))
+            #threads.append(threading.Thread(target=tweakWeights, args=(keyValueNodes, userProfiles[sequence], userSequence[sequence])))
+            tweakWeights(keyValueNodes, userProfiles[sequence], userSequence[sequence])
 
+        """
         count = 0
         numOfUsers = float(len(threads))        
         for thread in threads:
@@ -1071,9 +1249,11 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
             print "percentage completion: ", count / numOfUsers
             count += 1
 
+        """
         f = open(dbFileName + "_userProfiles_beforeNorming.json", "w")
         f.write(json.dumps(userProfiles))
         f.close()
+    
 
         print " normalizing weights.."
         normalizeWeights(userProfiles, keyValueNodes, datatype)
@@ -1094,6 +1274,7 @@ def mainImport(db=None, usageData=None, buildGraph=False, userProfiles=False, ge
         #find out the relative importance of the attributes, by considering the attribute's relative importance from all users. write the file to attributeRelativeImportance.pickle
         print "\nreducing dimensions"
         attributeRelativeImportance(dbFileName, dynamicPlot=False)
+        valueRelativeImportance(dbFileName)
         print "done reducing dimensions"
         
     if userSimilarity:
@@ -1207,4 +1388,6 @@ def mae(db=None, testData=None):
     return mae
 
 if __name__ == "__main__":
-    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", userSimilarity=True)
+    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", reduceDimensions=True)
+    
+#cleanUniqueAttribs=["imdb_id","title"]

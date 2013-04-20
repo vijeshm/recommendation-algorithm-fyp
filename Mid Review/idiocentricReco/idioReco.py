@@ -34,8 +34,15 @@ def egocentricRecommendation(keyValueNodes, userSequence, dbFileName, uid, userW
             for userNode in userSequenceRating:
                 if userNode in keyValueNodes[key][value]:
                     for node in keyValueNodes[key][value]:
-                        score["after"][node] += userWeights["after"][key] * float(userSequenceRating[userNode])
-                        score["before"][node] += userWeights["before"][key] * float(userSequenceRating[userNode])
+                        '''
+                        if key != 'rating':
+                            print node, userWeights["after"][key]
+                            raw_input()
+                        '''
+                        print userWeights["after"][key]
+                        print userWeights["after"][key][value]
+                        score["after"][node] += userWeights["after"][key][value] * userWeights["after"][key]["@RAI"] * float(userSequenceRating[userNode])
+                        score["before"][node] += userWeights["before"][key][value] * userWeights["after"][key]["@RAI"] * float(userSequenceRating[userNode])
                         score["equal"][node] += equalWeight * float(userSequenceRating[userNode])
 
     for item, rating in userSequence:
@@ -90,7 +97,6 @@ userWeights = {}
 userWeights["before"] = userProfileBefore[uid]["weights"]
 userWeights["after"] = userProfileAfter[uid]["weights"]
 
-
 #itemSequence = [ itemid for itemid,rating in userSequenceTrain[uid]]
 itemSequence = userSequenceTrain[uid]
 dbFileName = "movielens_1m"
@@ -98,8 +104,7 @@ dbFileName = "movielens_1m"
 itemRanking = egocentricRecommendation(keyValueNodes, itemSequence, dbFileName, uid, userWeights)
 testData = [ itemid for itemid, rating in userSequenceTest[uid]]
 
-upto = 20
-'''
+#upto = 20
 print "test data :"
 print testData[:]
 '''
@@ -111,9 +116,8 @@ print itemRanking["after"][:upto]
 
 print "Recommendation assuming equal weights:"
 print itemRanking["equal"][:upto]
-
-
 '''
+
 print "index of testData in itemRanking[\"after\"]"
 indexRanking = [itemRanking["after"].index(itemid) for itemid in testData]
 indexRanking.sort()
@@ -128,7 +132,6 @@ print "index of testData in itemRanking[\"equal\"]"
 indexRanking = [itemRanking["equal"].index(itemid) for itemid in testData]
 indexRanking.sort()
 print indexRanking, sum(indexRanking)
-'''
 
 """
 print "Intersection of reco after and testData:"

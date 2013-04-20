@@ -1,269 +1,135 @@
 import sys
 import json
-import matplotlib.pyplot as plt
-import math
 import numpy
+import math
+import random
 
-uid = sys.argv[1]
+numOfUsers = int(sys.argv[1])
 
-def egocentricRecommendation(keyValueNodes, userSequence, dbFileName, uid, userWeights, testNodes):
+def egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, testDataItems):
     '''
     graphDb (networkx Graph object): The database containing the relation between items in a graphical form
     userSequence (list) : the sequence in which the user has been associated with items
     This function applies our content based filtering algorithm to generate a score ranging from 0-1 for every item. This object will be written to contentReco.pickle as a pickle object. This pickle object is a dictionary with uid and score as the key and value respectively.
     '''
 
-    nodes = []
-    for key in keyValueNodes:
-        for value in keyValueNodes[key]:
-            nodes.extend(keyValueNodes[key][value])
-    nodes = list(set(nodes))
-
     score = {}
     score["after"] = {}
-    score["before"] = {}
-    score["equal"] = {}
-    equalWeight = 1.0 / len(userWeights["after"])
+    #score["before"] = {}
+    #score["equal"] = {}
+    #equalWeight = 1.0 / len(userWeights["after"])
 
-    for node in nodes:
+    for node in testDataItems:
         score["after"][node] = []
-        score["before"][node] = []
-        score["equal"][node] = []
+        #score["before"][node] = []
+        #score["equal"][node] = []
 
-    nodeImpact = {}
-    nodeImpact["after"] = {}
-    nodeImpact["before"] = {}
-    nodeImpact["equal"] = {}
-
-    for node in nodes:
-        nodeImpact["after"][node] = 0
-        nodeImpact["before"][node] = 0
-
-    userSequenceRating = dict(userSequence)
-
-    '''
-    for key in keyValueNodes:
-        for value in keyValueNodes[key]:
-            if value in userWeights["after"][key]:
-                for userNode in userSequenceRating:
-                    if userNode in keyValueNodes[key][value]:
-                        for node in keyValueNodes[key][value]:
-                            score["after"][node] += userWeights["after"][key][value] * userWeights["after"][key]["@RAI"] * float(userSequenceRating[userNode])
-                            score["before"][node] += userWeights["before"][key][value] * userWeights["before"][key]["@RAI"] * float(userSequenceRating[userNode])
-                            score["equal"][node] += equalWeight * float(userSequenceRating[userNode])
-
-                            nodeImpact["after"][node] += userWeights["after"][key][value] * userWeights["after"][key]["@RAI"]
-                            nodeImpact["before"][node] += userWeights["before"][key][value] * userWeights["before"][key]["@RAI"]
-    '''
-
-    impact = {}
-    impact["after"] = {}
-    impact["before"] = {}
-    impact["equal"] = {}
-
-    for userNode in userSequenceRating:
-        impact["after"][userNode] = {}
-        impact["before"][userNode] = {}
-        impact["equal"][userNode] = {}
-
-    numOfRatings = float(len(userSequenceRating))
-    freqOfRating = {}
-    ratings = userSequenceRating.values()
-    for rating in ratings:
-        try:
-            freqOfRating[rating] += 1
-        except KeyError:
-            freqOfRating[rating] = 1
-    relFreqOfRating = {rating: freqOfRating[rating] / numOfRatings for rating in ratings}
+    testDataItemDetails = {}
+    for item in testDataItems:
+        testDataItemDetails[item] = {}
 
     for key in keyValueNodes:
         for value in keyValueNodes[key]:
-            if value in userWeights["after"][key]:
-                '''
-                if key != "rating":
-                    print key, userWeights["after"][key]["@RAI"], value, userWeights["after"][key][value]
-                    print userWeights["after"][key][value] * ( userWeights["after"][key]["@RAI"] ** 2 )
-                    #raw_input("dbg2")
-                '''
-                for userNode in userSequenceRating:
-                    if userNode in keyValueNodes[key][value]:
-                        for node in keyValueNodes[key][value]:
-                            try:
-                                impact["after"][userNode][node] += userWeights["after"][key][value] * userWeights["after"][key]["@RAI"]
-                                impact["before"][userNode][node] += userWeights["before"][key][value] * userWeights["before"][key]["@RAI"]
-                            except KeyError:
-                                impact["after"][userNode][node] = userWeights["after"][key][value] * userWeights["after"][key]["@RAI"]
-                                impact["before"][userNode][node] = userWeights["before"][key][value] * userWeights["before"][key]["@RAI"]
+            for item in keyValueNodes[key][value]:
+                if item in testDataItems:
+                    try:
+                        testDataItemDetails[item][key].append(value)
+                    except KeyError:
+                        testDataItemDetails[item][key] = [value]
 
-                            if userNode == '260' and node == '274':
-                                print "key:", key
-                                print "value:", value
-                                print "RAI for the key:", userWeights["after"][key]["@RAI"], userWeights["before"][key]["@RAI"]
-                                print "weight for the key:", userWeights["after"][key][value], userWeights["before"][key][value]
-                                print "product: ", userWeights["after"][key][value] * userWeights["after"][key]["@RAI"], userWeights["before"][key][value] * userWeights["before"][key]["@RAI"]
-                                print "accumulated so far:", impact["after"][userNode][node], impact["before"][userNode][node]
-                                #raw_input("dbg1\n")
-
-    for category in impact:
-        for userNode in impact[category]:
-            for node in impact[category][userNode]:
-                score[category][node].append((float(userSequenceRating[userNode]), userNode, impact[category][userNode][node]))
-
-    predictions = {}
-    for node in nodes:
-        #if node in testNodes or node in userSequenceRating:
-        if True:
-            if node in userSequenceRating:
-                #print node, userSequenceRating[node]
-                pass
-            else:
-                #print node
-                pass
-
-            score["after"][node].sort()
-            score["before"][node].sort()
-
-            avrg = {}
-            for entry in score["after"][node]:
+    for item in testDataItemDetails:
+        for attrib in testDataItemDetails[item]:
+            for value in testDataItemDetails[item][attrib]:
                 try:
-                    avrg[entry[0]].append(entry[2])
+                    score["after"][item].append( [ (1 / userWeights["after"][attrib][value][0])**2 * (1 / userWeights["after"][attrib]["@RAI"])**2, numpy.average([float(rating) for rating in userWeights["after"][attrib][value][1]])] )
+                    #score["before"][item].append( [ (1 / userWeights["before"][attrib][value][0])**2 * (1 / userWeights["before"][attrib]["@RAI"])**2, numpy.average([float(rating) for rating in userWeights["after"][attrib][value][1]])] )
+                    #score["equal"][item].append([1, numpy.median([float(rating) for rating in userWeights["after"][attrib][value][1]])])
                 except KeyError:
-                    avrg[entry[0]] = [entry[2]]
-            counts = {rating:len(avrg[rating]) for rating in avrg}
-            avrg = {rating:numpy.average(avrg[rating]) for rating in avrg}
-            total = float(sum(avrg.values()))
-            prob = {rating:avrg[rating]/total*counts[rating] for rating in avrg}
-            print prob
-            #raw_input()
-            rating = max([ (probability, rating) for rating, probability in prob.items()])[1]
-            #print node, rating
-            predictions[node] = rating
+                    pass
+                except ZeroDivisionError:
+                    print uid, item, attrib, value
+                    raw_input("dbg1")
+        if uid == '5988' and item == '2396':
+            print score["after"][item]
+            for attrib in testDataItemDetails[item]:
+                print attrib
+                for value in testDataItemDetails[item][attrib]:
+                    print "        " + value
+            raw_input("dbg4")
 
-            '''
-            x = []
-            y = []
-            r = score["after"][node][0][0]
-            count = 0
-            s = 0
-            for entry in score["after"][node]:
-                if r != entry[0]:
-                    print s / count, relFreqOfRating[str(int(r))], s / count * relFreqOfRating[str(int(r))]
-                    r = entry[0]
-                    count = 0
-                    s = 0
-                else:
-                    s += entry[2]
-                    count += 1
-                print entry
-                x.append(entry[0])
-                y.append(entry[2])
-            plt.plot(x, y, 'ro')
-            plt.show()
-            print s / count, relFreqOfRating[str(int(r))], s / count * relFreqOfRating[str(int(r))]
-            print ""
-            sumOfWeights = sum([weight for rating, userNode, weight in score["after"][node]])
-            avrg = sum([weight*rating for rating, userNode, weight in score["after"][node]]) / sumOfWeights
-            '''
+    for item in testDataItemDetails:
+        try:
+            score["after"][item] = sum([weight*rating for weight, rating in score["after"][item]]) / sum([weight for weight, rating in score["after"][item]])
+            #score["before"][item] = sum([weight*rating for weight ,rating in score["before"][item]]) / sum([weight for weight, rating in score["before"][item]])
+            #score["equal"][item] = sum([weight*rating for weight ,rating in score["equal"][item]]) / sum([weight for weight, rating in score["equal"][item]])
+        except ZeroDivisionError:
+            print "dbg2", uid, item
+            raw_input("dbg3")
 
-    for node in nodes:
-        score["after"][node] = predictions[node]
-        score["before"][node] = predictions[node]
 
-        #score["after"][node] = sum([weight*rating for rating, userNode, weight in score["after"][node]]) / sum([weight for rating, userNode, weight in score["after"][node]])
-        #score["before"][node] = sum([weight*rating for rating, userNode, weight in score["before"][node]]) / sum([weight for rating, userNode, weight in score["before"][node]])
+    return score
 
-    for item, rating in userSequence:
-        score["after"].pop(item)
-        score["before"].pop(item)
-        score["equal"].pop(item)
-
-    itemRanking = {}
-    itemRanking["after"] = [ (itemScore, item) for item, itemScore in score["after"].items()]
-    itemRanking["before"] = [ (itemScore, item) for item, itemScore in score["before"].items()]
-    itemRanking["equal"] = [ (itemScore, item) for item, itemScore in score["equal"].items()]
-
-    itemRanking["after"].sort(reverse=True)
-    itemRanking["before"].sort(reverse=True)
-    itemRanking["equal"].sort(reverse=True)
-
-    itemRanking["after"] = dict([ (item, itemScore) for itemScore,item in itemRanking["after"] ])
-    itemRanking["before"] = dict([ (item, itemScore) for itemScore,item in itemRanking["before"] ])
-    itemRanking["equal"] = dict([ (item, itemScore) for itemScore,item in itemRanking["equal"] ])
-
-    return itemRanking
-
-f = open("../../code/movielens_1m_keyValueNodes.json","r")
+f = open("../movielens_1m_keyValueNodes.json","r")
 keyValueNodes = json.loads(f.read())
 f.close()
+print "keyValueNodes read.."
 
-f = open("../../code/movielens_1m_userData_trainset.json","r")
+f = open("../movielens_1m_userData_trainset.json","r")
 userSequenceTrain = {}
 for line in f:
     userSequenceTrain.update(json.loads(line))
 f.close()
+print "training data read.."
 
-f = open("../../code/movielens_1m_userData_testset.json","r")
+f = open("../movielens_1m_userData_testset.json","r")
 userSequenceTest = {}
 for line in f:
     userSequenceTest.update(json.loads(line))
 f.close()
+print "test data read.."
 
-f = open("../../code/movielens_1m_userProfiles_afterNorming.json","r")
+f = open("../movielens_1m_userProfiles_afterNorming.json","r")
 userProfileAfter = {}
 for line in f:
     userProfileAfter.update(json.loads(line))
 f.close()
+print "after norming read.."
 
-f = open("../../code/movielens_1m_userProfiles_beforeNorming.json","r")
+'''
+f = open("../movielens_1m_userProfiles_beforeNorming.json","r")
 userProfileBefore = {}
 for line in f:
     userProfileBefore.update(json.loads(line))
 f.close()
-
-userWeights = {}
-userWeights["before"] = userProfileBefore[uid]["weights"]
-userWeights["after"] = userProfileAfter[uid]["weights"]
-
-#itemSequence = [ itemid for itemid,rating in userSequenceTrain[uid]]
-itemSequence = userSequenceTrain[uid]
-dbFileName = "movielens_1m"
-
-itemRanking = egocentricRecommendation(keyValueNodes, itemSequence, dbFileName, uid, userWeights, [item for item, rating in userSequenceTest[uid]])
-#testData = [ itemid for itemid, rating in userSequenceTest[uid]]
-
-#upto = 20
-userTestData = dict(userSequenceTest[uid])
-
-print "score of testData: "
-a = [ (float(userTestData[itemid]), itemid, itemRanking["after"][itemid], itemRanking["before"][itemid], itemRanking["equal"][itemid]) for itemid, rating in userSequenceTest[uid]]
-a.sort()
-for i in a:
-    print i
-
-'''
-print "index of testData in itemRanking[\"after\"]"
-indexRanking = [itemRanking["after"].index(itemid) for itemid in testData]
-indexRanking.sort()
-print indexRanking, sum(indexRanking)
-
-print "index of testData in itemRanking[\"before\"]"
-indexRanking = [itemRanking["before"].index(itemid) for itemid in testData]
-indexRanking.sort()
-print indexRanking, sum(indexRanking)
-
-print "index of testData in itemRanking[\"equal\"]"
-indexRanking = [itemRanking["equal"].index(itemid) for itemid in testData]
-indexRanking.sort()
-print indexRanking, sum(indexRanking)
+print "before norming read.."
 '''
 
-"""
-print "Intersection of reco after and testData:"
-print set(itemRanking["after"][:upto]).intersection(testData[:])
+users = userProfileAfter.keys()
+#users = random.sample(userProfileAfter.keys(), numOfUsers)
+error = []
 
-print "reco before :"
-print itemRanking["before"][:upto]
+count = 0
+for uid in users:
+    print count, uid
+    count += 1
+    userWeights = {}
+    #userWeights["before"] = userProfileBefore[uid]["weights"]
+    userWeights["after"] = userProfileAfter[uid]["weights"]
 
-print "reco equal :"
-print itemRanking["equal"][:upto]
-"""
+    itemSequence = [ itemid for itemid,rating in userSequenceTrain[uid]]
+    dbFileName = "movielens_1m"
+
+    itemRanking = egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, [item for item, rating in userSequenceTest[uid]])
+    #testData = [ itemid for itemid, rating in userSequenceTest[uid]]
+
+    userTestData = dict(userSequenceTest[uid])
+    #results = [ (float(userTestData[itemid]), itemid, numpy.round(itemRanking["after"][itemid]), itemRanking["before"][itemid], itemRanking["equal"][itemid]) for itemid, rating in userSequenceTest[uid]]
+    results = [ (float(userTestData[itemid]), itemid, numpy.round(itemRanking["after"][itemid])) for itemid, rating in userSequenceTest[uid]]
+    results.sort()
+    for result in results:
+        #print result[0], result[2]
+        error.append((result[0] - result[2])**2)
+    print "error: ", math.sqrt(sum(error) / len(error))
+
+error = math.sqrt(sum(error) / len(error))
+print error
