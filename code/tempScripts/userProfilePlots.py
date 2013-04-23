@@ -7,11 +7,11 @@ import numpy as np
 
 userID = sys.argv[1]
 
-f = open("../movielens_1m_userProfiles_beforeNorming.json", "r")
+f = open("../movielens_100k_userProfiles_beforeNorming.json", "r")
 beforeNorm = json.loads(f.read())
 f.close()
 
-f = open("../movielens_1m_userProfiles_afterNorming.json", "r")
+f = open("../movielens_100k_userProfiles_afterNorming.json", "r")
 afterNorm = json.loads(f.read())
 f.close()
 

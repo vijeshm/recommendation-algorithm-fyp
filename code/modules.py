@@ -32,7 +32,7 @@ def learnGraph(JSONdb, edgeList=False):
     '''
     JSONdb (string) - file name of the db - a file of strings, each of which are in JSON format
     Given a database of items, this function generates the item relations graph that can be used to for recommending items to users in a content based manner.
-    ''' 
+    '''
 
     #open the file, read each line, parse it and put it onto the itemList
     itemList = []
@@ -1108,7 +1108,7 @@ def reverseMapping(JSONdb):
     f.close()
     return reverseEnum
 
-def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=None, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
+def mainImport(db=None, trainData=None, testData=None, buildGraph=False, cleanUniqueAttribs=None, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
     dbFileName = ""
     if db:
         dbFileName = db
@@ -1117,8 +1117,8 @@ def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=Non
         exit()
 
     userSequence = ""
-    if usageData:
-        userSequence = usageData
+    if trainData:
+        userSequence = trainData
     else:
         print "please specify the usagedata file name"
         exit()
@@ -1154,11 +1154,17 @@ def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=Non
     print "reading usage data"
     #f = open(usageData, "r")
     userSequence = {}
-    for line in fileinput.input(usageData):
+    for line in fileinput.input(trainData):
         jsonUser = json.loads(line)
         userSequence.update(jsonUser)
     #f.close()
     # userSequence = dict(random.sample(userSequence.items(),500))
+
+    testUserSequence = {}
+    for line in fileinput.input(testData):
+        jsonUser = json.loads(line)
+        testUserSequence.update(jsonUser)
+
     print "done using reading usage data"
     
     if cleanUniqueAttribs:
@@ -1193,13 +1199,30 @@ def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=Non
                     ItemRating[idMapping[itemid]] = rating
             copyUserSequence[user] = ItemRating.items() 
 
+        copyTestUserSequence = copy.deepcopy(testUserSequence)
+        for user in testUserSequence:
+            itemRating = dict(testUserSequence[user])
+            for itemId in idMapping:
+                if itemRating.has_key(itemId):
+                    rating = itemRating.pop(itemId)
+                    itemRating[idMapping[itemId]] = rating
+            copyTestUserSequence[user] = itemRating.items()
+
+        keyValueNodes = copyKeyValueNodes
+        userSequence = copyUserSequence
+        testUserSequence = copyTestUserSequence
         f = open(dbFileName+"_keyValueNodes.json","w")
         f.write(json.dumps(copyKeyValueNodes))
         f.close()
 
-        f = open(dbFileName+"_userData.json","w")
+        f = open(dbFileName+"_userData_trainset.json","w")
         for user in userSequence:
             f.write(json.dumps({user:copyUserSequence[user]}) + "\n")
+        f.close()
+
+        f = open(dbFileName+"_userData_testset.json","w")
+        for user in userSequence:
+            f.write(json.dumps({user:copyTestUserSequence[user]}) + "\n")
         f.close()
 
     if generateSequence:
@@ -1388,6 +1411,6 @@ def mae(db=None, testData=None):
     return mae
 
 if __name__ == "__main__":
-    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", reduceDimensions=True)
+    mainImport(db="movielens_100k", trainData="atrain.json", testData="atest.json", buildGraph=True, cleanUniqueAttribs=["imdb_id","title"], userProfiles=True, reduceDimensions=True)
     
 #cleanUniqueAttribs=["imdb_id","title"]

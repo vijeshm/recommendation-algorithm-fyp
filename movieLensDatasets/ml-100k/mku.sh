@@ -11,13 +11,13 @@ do
 	sort -t"	" -k 1,1n -k 2,2n tmp.$$ > u$i.base
 done
 
-allbut.pl ua 1 10 100000 u.data
+perl allbut.pl ua 1 10 100000 u.data
 sort -t"	" -k 1,1n -k 2,2n ua.base > tmp.$$
 mv tmp.$$ ua.base
 sort -t"	" -k 1,1n -k 2,2n ua.test > tmp.$$
 mv tmp.$$ ua.test
 
-allbut.pl ub 11 20 100000 u.data
+perl allbut.pl ub 11 20 100000 u.data
 sort -t"	" -k 1,1n -k 2,2n ub.base > tmp.$$
 mv tmp.$$ ub.base
 sort -t"	" -k 1,1n -k 2,2n ub.test > tmp.$$

@@ -12,15 +12,14 @@ def egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, testDa
     userSequence (list) : the sequence in which the user has been associated with items
     This function applies our content based filtering algorithm to generate a score ranging from 0-1 for every item. This object will be written to contentReco.pickle as a pickle object. This pickle object is a dictionary with uid and score as the key and value respectively.
     '''
-
     score = {}
     score["after"] = {}
     #score["before"] = {}
     #score["equal"] = {}
     #equalWeight = 1.0 / len(userWeights["after"])
 
-    for node in testDataItems:
-        score["after"][node] = []
+    for item in testDataItems:
+        score["after"][item] = []
         #score["before"][node] = []
         #score["equal"][node] = []
 
@@ -41,7 +40,10 @@ def egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, testDa
         for attrib in testDataItemDetails[item]:
             for value in testDataItemDetails[item][attrib]:
                 try:
-                    score["after"][item].append( [ (1 / userWeights["after"][attrib][value][0])**2 * (1 / userWeights["after"][attrib]["@RAI"])**2, numpy.average([float(rating) for rating in userWeights["after"][attrib][value][1]])] )
+                    score["after"][item].append( [ (userWeights["after"][attrib][value][0]) ** (userWeights["after"][attrib]["@RAI"]), numpy.average([float(rating) for rating in userWeights["after"][attrib][value][1]])] )
+                    
+                    #score["after"][item].append( [ (1 / userWeights["after"][attrib][value][0])**2 * (1 / userWeights["after"][attrib]["@RAI"])**2, numpy.average([float(rating) for rating in userWeights["after"][attrib][value][1]])] )
+                    
                     #score["before"][item].append( [ (1 / userWeights["before"][attrib][value][0])**2 * (1 / userWeights["before"][attrib]["@RAI"])**2, numpy.average([float(rating) for rating in userWeights["after"][attrib][value][1]])] )
                     #score["equal"][item].append([1, numpy.median([float(rating) for rating in userWeights["after"][attrib][value][1]])])
                 except KeyError:
@@ -49,13 +51,6 @@ def egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, testDa
                 except ZeroDivisionError:
                     print uid, item, attrib, value
                     raw_input("dbg1")
-        if uid == '5988' and item == '2396':
-            print score["after"][item]
-            for attrib in testDataItemDetails[item]:
-                print attrib
-                for value in testDataItemDetails[item][attrib]:
-                    print "        " + value
-            raw_input("dbg4")
 
     for item in testDataItemDetails:
         try:
@@ -63,32 +58,30 @@ def egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, testDa
             #score["before"][item] = sum([weight*rating for weight ,rating in score["before"][item]]) / sum([weight for weight, rating in score["before"][item]])
             #score["equal"][item] = sum([weight*rating for weight ,rating in score["equal"][item]]) / sum([weight for weight, rating in score["equal"][item]])
         except ZeroDivisionError:
-            print "dbg2", uid, item
-            raw_input("dbg3")
-
+            pass
 
     return score
 
-f = open("../movielens_1m_keyValueNodes.json","r")
+f = open("../movielens_100k_keyValueNodes.json","r")
 keyValueNodes = json.loads(f.read())
 f.close()
 print "keyValueNodes read.."
 
-f = open("../movielens_1m_userData_trainset.json","r")
+f = open("../movielens_100k_userData_trainset.json","r")
 userSequenceTrain = {}
 for line in f:
     userSequenceTrain.update(json.loads(line))
 f.close()
 print "training data read.."
 
-f = open("../movielens_1m_userData_testset.json","r")
+f = open("../movielens_100k_userData_testset.json","r")
 userSequenceTest = {}
 for line in f:
     userSequenceTest.update(json.loads(line))
 f.close()
 print "test data read.."
 
-f = open("../movielens_1m_userProfiles_afterNorming.json","r")
+f = open("../movielens_100k_userProfiles_afterNorming.json","r")
 userProfileAfter = {}
 for line in f:
     userProfileAfter.update(json.loads(line))
@@ -110,26 +103,26 @@ error = []
 
 count = 0
 for uid in users:
-    print count, uid
+    #print count, uid
     count += 1
     userWeights = {}
     #userWeights["before"] = userProfileBefore[uid]["weights"]
     userWeights["after"] = userProfileAfter[uid]["weights"]
 
     itemSequence = [ itemid for itemid,rating in userSequenceTrain[uid]]
-    dbFileName = "movielens_1m"
+    dbFileName = "movielens_100k"
 
     itemRanking = egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, [item for item, rating in userSequenceTest[uid]])
     #testData = [ itemid for itemid, rating in userSequenceTest[uid]]
 
     userTestData = dict(userSequenceTest[uid])
     #results = [ (float(userTestData[itemid]), itemid, numpy.round(itemRanking["after"][itemid]), itemRanking["before"][itemid], itemRanking["equal"][itemid]) for itemid, rating in userSequenceTest[uid]]
-    results = [ (float(userTestData[itemid]), itemid, numpy.round(itemRanking["after"][itemid])) for itemid, rating in userSequenceTest[uid]]
+    results = [ (float(userTestData[itemid]), itemid, numpy.round(itemRanking["after"][itemid])) for itemid, rating in userSequenceTest[uid] if itemRanking["after"][itemid]]
     results.sort()
     for result in results:
         #print result[0], result[2]
         error.append((result[0] - result[2])**2)
-    print "error: ", math.sqrt(sum(error) / len(error))
+    print count, "error: ", math.sqrt(sum(error) / len(error))
 
 error = math.sqrt(sum(error) / len(error))
 print error
