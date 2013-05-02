@@ -46,26 +46,9 @@ def egocentricRecommendation(keyValueNodes, dbFileName, uid, userWeights, testDa
                     #score["equal"][item].append([1, numpy.median([float(rating) for rating in userWeights["after"][attrib][value][1]])])
                 except KeyError:
                     pass
-                except ZeroDivisionError:
-                    print uid, item, attrib, value
-                    raw_input("dbg1")
-        if uid == '5988' and item == '2396':
-            print score["after"][item]
-            for attrib in testDataItemDetails[item]:
-                print attrib
-                for value in testDataItemDetails[item][attrib]:
-                    print "        " + value
-            raw_input("dbg4")
 
     for item in testDataItemDetails:
-        try:
-            score["after"][item] = sum([weight*rating for weight, rating in score["after"][item]]) / sum([weight for weight, rating in score["after"][item]])
-            #score["before"][item] = sum([weight*rating for weight ,rating in score["before"][item]]) / sum([weight for weight, rating in score["before"][item]])
-            #score["equal"][item] = sum([weight*rating for weight ,rating in score["equal"][item]]) / sum([weight for weight, rating in score["equal"][item]])
-        except ZeroDivisionError:
-            print "dbg2", uid, item
-            raw_input("dbg3")
-
+        score["after"][item] = sum([weight*rating for weight, rating in score["after"][item]]) / sum([weight for weight, rating in score["after"][item]])
 
     return score
 

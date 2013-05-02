@@ -23,6 +23,7 @@ import threading
 import fileinput
 import gc
 from scipy.cluster.vq import kmeans2
+import math
 #import concurrent.futures
 
 # Third party libraries
@@ -134,50 +135,6 @@ def learnGraph(JSONdb, edgeList=False):
     #print "writing to file"
     #fp.write(pickleStr)
     #fp.close()
-
-def egocentricRecommendation(graphDb, userSequence, dbFileName, uid):
-    '''
-    graphDb (networkx Graph object): The database containing the relation between items in a graphical form
-    userSequence (list) : the sequence in which the user has been associated with items
-    This function applies our content based filtering algorithm to generate a score ranging from 0-1 for every item. This object will be written to contentReco.pickle as a pickle object. This pickle object is a dictionary with uid and score as the key and value respectively.
-    '''
-
-    #set the initial score for all the nodes to be zero.
-    for node in graphDb.nodes():
-        graphDb[node]["score"] = 0
-
-    #for every node in the userSequence, increment the neighbor's score for every common attribute. (The increment can also take place in a weight manner)
-    sequenceNames = []
-    for node, rating in userSequence:
-        sequenceNames.append(graphDb[node]["title"][0])
-        neighbors = getRealNeighbors(graphDb.neighbors(node))
-
-        for neighbor in neighbors:
-            for assoc in graphDb[node][neighbor]:
-                graphDb[neighbor]["score"] += 1 #Note: This is not weighted increment.
-    #print "user sequence: ", sequenceNames
-
-    #normalizing the scores - divide by the largest score
-    weights = [graphDb[node]["score"] for node in graphDb.nodes()]
-    #maxWeight = float(max(weights))
-    sumOfWeights = float(sum(weights))
-
-    for node in graphDb.nodes():
-        #graphDb[node]["score"] = graphDb[node]["score"] / maxWeight
-        graphDb[node]["score"] = graphDb[node]["score"] / sumOfWeights
-
-    #create a dictionary with key and value as node and score respectively
-    reco = {}
-    for node in graphDb.nodes():
-        reco[node] = graphDb[node]["score"]
-
-    #write this object onto a pickle file
-    fp = open(dbFileName + "_" + str(uid) + "_contentReco.pickle", "w")
-    fp.write(pickle.dumps(reco))
-    fp.close()
-
-    #print "written to file", dbFileName + "_" + str(uid) + "_contentReco.pickle"
-    #raw_input()
 
 def buildSimGraph(keyValueNodes, userSequence):
     G = {}
@@ -506,240 +463,6 @@ def buildUserSimilarityDictOld(G, userSequence, userProfiles, dbFileName, upperl
     f.write(pickle.dumps(userSimilarity))
     f.close()
 
-def getSimilarity(userSimilarity, user1, user2):
-    if userSimilarity[user1].has_key(user2):
-        return userSimilarity[user1][user2][0] / userSimilarity[user1][user2][1]
-    else:
-        return userSimilarity[user2][user1][0] / userSimilarity[user2][user1][1]
-
-def formClustersFn(userSimilarity, threshold, dbFileName):
-    #clusters = []
-    clusters = userSimilarity.keys()
-    after_cluster = []
-    
-    total = float(len(clusters)*( len(clusters) + 1) / 2)
-    count = 0
-
-    for x in range(len(clusters)):
-        tic = [ [clusters[x]] ]
-        for y in clusters[x+1:]:
-            count += 1
-            i = 0
-            print clusters[x], y, count / total, "tic:" + str(len(tic))
-            while i<len(tic) and getSimilarity(userSimilarity, clusters[x], y) >= threshold:
-                toc = [y]
-                for j in tic[i]:
-                    if getSimilarity(userSimilarity, j, y) >= threshold :
-                        toc.append(j)
-
-                if toc[1:] == tic[i]:
-                    tic[i].append(y)
-                    i = i+1
-
-                elif toc not in tic:
-                    tic.insert(i+1, toc)
-                    i = i+2
-                    
-                else:
-                    i = i+1
-
-        for i in tic:
-            if len(i) != 1:
-                i.sort()
-                if i not in after_cluster:
-                    after_cluster.append(i)
-
-    after_cluster.sort()
-    after_cluster_final = []
-
-    count = 0
-    total = len(after_cluster) * (len(after_cluster) + 1) / 2.0
-    for i in after_cluster:
-        flag = False
-        for j in after_cluster:
-            count += 1
-            print count / total
-            if i!=j and set(i).issubset(set(j)):
-                flag = True
-                break
-
-        if not flag:
-            after_cluster_final.append(i)
-
-    f = open(dbFileName + "_clusters.pickle", "w")
-    f.write(pickle.dumps(after_cluster_final))
-    f.close()
-
-    '''
-    users = userSimilarity.keys()
-
-    singletons = []
-
-    clusters = []
-    for user in users:
-        clusters.append(set([user]))
-
-    print clusters
-
-    for user in users:
-        singletonFlag = True
-        for i in range(len(clusters)):
-            clusterMember = True
-            #difference between similarity scores of any two members is less than threshold.
-            for member1 in clusters[i]:
-                for member2 in clusters[i]:
-                    if( abs(getSimilarity(userSimilarity, user, member1) - getSimilarity(userSimilarity, user, member2) ) > threshold ):
-                        clusterMember = False
-            if(clusterMember):
-                clusters[i].add(user)
-                singletonFlag = False
-
-        if(singletonFlag):
-            singletons.append(set([user]))
-        #print clusters
-        #raw_input()
-
-    #clean all singletons
-    temp = []
-    for cluster in clusters:
-        if len(cluster) != 1:
-            temp.append(cluster)
-    clusters = temp
-
-    clusters.extend(singletons)
-
-    temp = []
-    for cluster in clusters:
-        if clusters.count(cluster) == 1:
-            temp.append(cluster)
-    clusters = temp
-    
-    for cluster in clusters:
-        print cluster
-    '''
-
-    f = open("clusters.pickle", "w")
-    f.write(pickle.dumps(clusters))
-    f.close()
-
-def collaborativeRecommend(uid, G, clusters, userSequence, userSimilarity, dbFileName):
-    for node in G.nodes():
-        G[node]["score"] = 0.0
-
-    k = int(0.2 * len(userSimilarity))
-    sims = [(sim, user) for (user, sim) in userSimilarity[uid].items()]
-    sims.sort(reverse=True)
-    for sim, user in sims[:k]:
-        for items in userSequence[user]:
-            if (uid != user):
-                G[items[0]]["score"] += getSimilarity(userSimilarity, uid, user)
-                
-    #maxWeight = float(max([G[node]["score"] for node in G.nodes()]))
-    sumOfWeights = float(sum([G[node]["score"] for node in G.nodes()]))
-
-    reco = {}
-    for node in G.nodes():
-        reco[node] = G[node]["score"] / sumOfWeights
-        '''
-        if maxWeight != 0:
-            reco[node] = G[node]["score"] / maxWeight
-        else:
-            reco[node] = 0.0
-        '''
-
-
-    '''
-    for cluster in clusters:
-        #print cluster
-        #raw_input()
-        if uid in cluster:
-            #print uid
-            raw_input("it exists")
-
-            for user in cluster:
-                #print userSequence[user]
-                for items in userSequence[user]:
-                    if (uid != user):
-                        G[items[0]]["score"] += getSimilarity(userSimilarity, uid, user)
-                        #print node, G[items[0]]["score"]
-                        #raw_input()
-
-    maxWeight = float(max([G[node]["score"] for node in G.nodes()]))
-
-    reco = {}
-    for node in G.nodes():
-        if maxWeight != 0:
-            reco[node] = G[node]["score"] / maxWeight
-        else:
-            reco[node] = 0.0
-    '''
-
-    fp = open(dbFileName + "_" + str(uid) + "_collabReco.pickle", "w")
-    fp.write(pickle.dumps(reco))
-    fp.close()
-
-    #print "written to file ", dbFileName + "_" + str(uid) + "_collabReco.pickle"
-    #raw_input()
-
-def combineLists(G, alpha, uid, sequence, dbFileName):
-    '''
-    G (networkx graph object)
-    alpha (float) - a number between 0 and 1.
-    This function combines the both the generated lists of items into one composite list.
-    '''
-
-    #open both the files that contain the recommendations, combine them using the weighted average method, based in their scores rather than the ranks.
-    fp = open(dbFileName + "_" + str(uid) + "_contentReco.pickle", "r")
-    contentReco = pickle.loads(fp.read())
-    fp.close()
-    
-    fp = open(dbFileName + "_" + str(uid) + "_collabReco.pickle", "r")
-    collabReco = pickle.loads(fp.read())
-    fp.close()
-
-    combinedReco = {}
-    items = contentReco.keys()
-
-    for item in items:
-        if item in sequence:
-            combinedReco.pop(item)
-
-    #score based weighted average
-    for item in items:
-        combinedReco[item] = alpha*contentReco[item] + (1 - alpha)*collabReco[item]
-
-    '''
-    ###########################################
-    #rank(or index) based weighted average
-    contentRecoRank = {}
-    valueKey = [(value, key) for (key, value) in contentReco.items()]
-    valueKey.sort(reverse = True)
-    for i in range(len(valueKey)):
-        contentRecoRank[valueKey[1]] = i
-
-    collabRecoRank = {}
-    valueKey = [(value, key) for (key, value) in collabReco.items()]
-    valueKey.sort(reverse = True)
-    for i in range(len(valueKey)):
-        collabRecoRank[valueKey[1]] = i
-
-    for uid in uids:
-        combinedReco[uid] = alpha*contentReco[uid] + (1 - alpha)*collabReco[uid]    
-    ###########################################
-    '''
-
-    #recos = [ (rate, item) for item,rate in combinedReco.items()]
-    #recos.sort(reverse = True)
-    #recos = [(G[item]["title"][0], rate) for rate,item in recos]
-    #for reco in recos[:20]:
-    #    print reco
-
-    fp = open(dbFileName + "_" + str(uid) + "_combinedReco.pickle", "w")
-    fp.write(pickle.dumps(combinedReco))
-    fp.close()
-
-    #print "written to file ", dbFileName + "_" + str(uid) + "_combinedReco.pickle"
-    #raw_input()
 
 def createUserData(graphDB, alpha, numberOfUsers, threshold, maxItems, dbFileName):
     '''
@@ -1108,7 +831,146 @@ def reverseMapping(JSONdb):
     f.close()
     return reverseEnum
 
-def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=None, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None):
+def getSimilarity(user1, user2, userSimilarity):
+    try :
+        n1 = userSimilarity[user1][user2]["numerator"]
+    except :
+        n1 = 0
+    try :
+        n2 = userSimilarity[user2][user1]["numerator"]
+    except :
+        n2 = 0
+    try :
+        d1 = userSimilarity[user1][user2]["denominator"]
+    except :
+        d1 = 0
+    try :
+        d2 = userSimilarity[user2][user1]["denominator"]
+    except :
+        d2 = 0
+    return (n1+n2)/(d1+d2)
+
+def clusterUsers(JSONdb):
+    f = open("movielens_1m_userSimilarity.json","r")
+    userSimilarity = json.loads(f.read())
+    f.close()
+
+    values = []
+    userList = userSimilarity.keys()
+    userPairs = itertools.combinations(userList,2)
+    for user1,user2 in userPairs:
+        values.append(getSimilarity(user1,user2,userSimilarity))
+
+    k = numpy.average(values)
+    k = k + 0.002
+    # print k
+    
+    userList = random.sample(userList,len(userList))
+    userClusterDict = {}
+    for user in userList:
+        userClusterDict[user] = [user]
+
+    userPairs = itertools.permutations(userList,2)
+    total = len(userList) * (len(userList)-1)
+    count = 0
+    for pair in userPairs:
+        count += 1
+        #print count*1.0/total
+        if getSimilarity(pair[0],pair[1],userSimilarity) > k:
+            userClusterDict[pair[0]].append(pair[1])
+    userClusters = userClusterDict.values()
+    for i in range(0,len(userClusters)):
+        userClusters[i].sort()
+    userClusters.sort()
+    userClusters = list(userClusters for userClusters,_ in itertools.groupby(userClusters))
+    f = open(JSONdb+"_userClusters.json","w")
+    f.write(json.dumps(userClusters))
+    f.close()
+
+def egocentricRecommendation(testDataItems, userWeights, keyValueNodes):
+    score = {}
+    for node in testDataItems:
+        score[node] = []
+
+    testDataItemDetails = {}
+    for item in testDataItems:
+        testDataItemDetails[item] = {}
+
+    for key in keyValueNodes:
+        for value in keyValueNodes[key]:
+            for item in keyValueNodes[key][value]:
+                if item in testDataItems:
+                    try:
+                        testDataItemDetails[item][key].append(value)
+                    except KeyError:
+                        testDataItemDetails[item][key] = [value]
+
+    for item in testDataItemDetails:
+        for attrib in testDataItemDetails[item]:
+            for value in testDataItemDetails[item][attrib]:
+                try:
+                    score[item].append( [ (1 / userWeights[attrib][value][0])**2 * (1 / userWeights[attrib]["@RAI"])**2, numpy.average([float(rating) for rating in userWeights[attrib][value][1]])] )
+                except KeyError:
+                    pass
+    for item in testDataItemDetails:
+        score[item] = sum([weight*rating for weight, rating in score[item]]) / sum([weight for weight, rating in score[item]])
+    return score
+
+    
+def collaborativeRecommend(uid, clusters, userSequenceTrain, testDataItems, userSimilarity):
+    '''
+    '''
+    testDataScore = {}
+    score = {}
+    for item  in testDataItems:
+        testDataScore[item] = {}
+        testDataScore[item]["rating"]=[]
+        testDataScore[item]["similarity"]=[]
+    
+    userSequenceTrainDict = {}
+    for user in userSequenceTrain:
+        userSequenceTrainDict[user] =  dict(userSequenceTrain[user])
+
+    #print userSequenceTrainDict[uid]
+    #print clusters
+    #raw_input()
+    clustersUID = []
+    for cluster in clusters:
+        if uid in cluster:
+            clustersUID.append(cluster)
+
+    #print clustersUID[0]
+    #raw_input()
+
+    for cluster in clustersUID :
+        for user in cluster :
+            try:
+                intersectSet = set(userSequenceTrainDict.keys()).intersection(set(testDataItems))
+                for item in intersectSet:
+                    testDataScore[item]["rating"].append(int(userSequenceTrainDict[user][item]))
+                    testDataScore[item]["similarity"].append(getSimilarity(uid,user,userSimilarity))
+            except KeyError:
+                pass
+
+    for item  in testDataItems:
+        try :
+            score[item]= sum(numpy.array(testDataScore[item]["rating"])*numpy.array(testDataScore[item]["similarity"]))/(sum(numpy.array(testDataScore[item]["similarity"]))) 
+        except ZeroDivisionError:
+            score[item] = 0
+    return score
+
+def combineLists(alpha, itemRankingEgo, itemRankingColl):
+    comboList = {}
+    for item in itemRankingEgo.keys():
+        if itemRankingColl[item] != 0 :
+            comboList[item] = itemRankingEgo[item]*(alpha) + itemRankingColl[item]*(1-alpha)
+        if itemRankingColl[item] == 0 :
+            comboList[item] = itemRankingEgo[item]
+    return comboList
+
+def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=None, userProfiles=False, generateSequence=None, reduceDimensions=False, userSimilarity=None, formClusters=None, uid=None, rmsErrorForAll=False):
+    """
+    """
     dbFileName = ""
     if db:
         dbFileName = db
@@ -1262,7 +1124,7 @@ def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=Non
         f = open(dbFileName + "_userProfiles_afterNorming.json", "w")
         f.write(json.dumps(userProfiles))
         f.close()
-        print "done creating userProfiles.."
+        print "done creating userProfiles.." 
 
     #load the userProfiles onto an object
     f = open(dbFileName + "_userProfiles_afterNorming.json", "r")
@@ -1284,37 +1146,138 @@ def mainImport(db=None, usageData=None, buildGraph=False, cleanUniqueAttribs=Non
         buildUserSimilarityDictNew(keyValueNodes, userSequence, userProfiles, dbFileName).buildSimilarity()
         print "done building user similarity"
 
-    f = open(dbFileName + "_userSimilarity.pickle", "r")
-    userSimilarity = pickle.loads(f.read())
-    f.close()
-
     if formClusters:
-        #print "have to form clusters"
-        threshold = formClusters
-        
+        #print "have to form clusters"        
         print "forming clusters.."
-        formClustersFn(userSimilarity, threshold, dbFileName)
+        clusterUsers(dbFileName)
         print "done forming clusters.."
 
-    f = open(dbFileName + "_clusters.pickle", "r")
-    clusters = pickle.loads(f.read())
-    f.close()
+    if rmsErrorForAll:
+        print "Reading all the prerequisite data"
+        
+        f = open("movielens_1m_keyValueNodes.json","r")
+        keyValueNodes = json.loads(f.read())
+        f.close()
+        
+        f = open("movielens_1m_userData_trainset.json","r")
+        userSequenceTrain = {}
+        for line in f:
+            userSequenceTrain.update(json.loads(line))
+        f.close()
+        
+        f = open("movielens_1m_userData_testset.json","r")
+        userSequenceTest = {}
+        for line in f:
+            userSequenceTest.update(json.loads(line))
+        f.close()
+
+        f = open("movielens_1m_userProfiles_afterNorming.json","r")
+        userProfile = {}
+        for line in f:
+            userProfile.update(json.loads(line))
+        f.close()
+
+        f = open("movielens_1m_userSimilarity.json","r")
+        userSimilarity = json.loads(f.read())
+        f.close()
+
+        f = open("movielens_1m_userClusters.json","r")
+        clusters = json.loads(f.read())
+        f.close()
+
+        print "Done reading all the prerequisite data"
+        
+
+        print "Calculating the Root Mean Square error"
+        users = userProfile.keys()
+        error = []
+        count = 0
+        for uid in users:
+            sys.stdout.write( "Percentage complete "+ str(count*100.0/len(users)))
+            count += 1
+            userWeights = userProfile[uid]["weights"]
+
+            itemSequence = [ itemid for itemid,rating in userSequenceTrain[uid]]
+            dbFileName = "movielens_1m"
+            testDataItems = [item for item, rating in userSequenceTest[uid]]
+            itemRankingEgo = egocentricRecommendation(testDataItems, userWeights, keyValueNodes)
+            itemRankingColl = collaborativeRecommend(uid, clusters, userSequenceTrain, testDataItems, userSimilarity)
+            combList = combineLists(userProfile[uid]["alpha"], itemRankingEgo, itemRankingColl)
+            #testData = [ itemid for itemid, rating in userSequenceTest[uid]]
+
+            userTestData = dict(userSequenceTest[uid])
+            #results = [ (float(userTestData[itemid]), itemid, numpy.round(itemRanking["after"][itemid]), itemRanking["before"][itemid], itemRanking["equal"][itemid]) for itemid, rating in userSequenceTest[uid]]
+            results = [ (float(userTestData[itemid]), itemid, numpy.round(combList[itemid])) for itemid, rating in userSequenceTest[uid]]
+            results.sort()
+            for result in results:
+                error.append((result[0] - result[2])**2)
+            sys.stdout.write("\b"*1000)
+        error = math.sqrt(sum(error) / len(error))
+        print "Average error in predicting the ratings :", error
 
     if uid:
-        print "List of movies that the user", uid, "has watched: "
-        print [G[itemId]["title"][0] for itemId, rating in userSequence[uid]]
+        print "Reading all the prerequisite data"
+        
+        f = open("movielens_1m_keyValueNodes.json","r")
+        keyValueNodes = json.loads(f.read())
+        f.close()
+        
+        f = open("movielens_1m_userData_trainset.json","r")
+        userSequenceTrain = {}
+        for line in f:
+            userSequenceTrain.update(json.loads(line))
+        f.close()
+        
+        f = open("movielens_1m_userData_testset.json","r")
+        userSequenceTest = {}
+        for line in f:
+            userSequenceTest.update(json.loads(line))
+        f.close()
+        
+        f = open("movielens_1m_userProfiles_afterNorming.json","r")
+        userProfile = {}
+        for line in f:
+            userProfile.update(json.loads(line))
+        f.close()
+
+        f = open("movielens_1m_userSimilarity.json","r")
+        userSimilarity = json.loads(f.read())
+        f.close()
+
+        f = open("movielens_1m_userClusters.json","r")
+        clusters = json.loads(f.read())
+        f.close()
+
+        print "Done reading all the prerequisite data"
+
+        print "List of (movies,ratings) that the user", uid, "has watched: "
+        print userSequenceTrain[uid]
+
+        print "List of (movies,ratings) that the user", uid, "will watch and his original ratings: "
+        print dict(userSequenceTest[uid])
 
         print "\ngetting egocentric recommendation for user ID", uid
         #get the egocentric recommendation, and write it onto a file called contentReco.pickle
-        egocentricRecommendation(G, userSequence[uid], dbFileName, uid)
+        testDataItems = [item for item, rating in userSequenceTest[uid]]
+        userWeights = userProfile[uid]["weights"]
+        
+        itemRankingEgo = egocentricRecommendation(testDataItems, userWeights, keyValueNodes)
+        #itemRankingEgo = itemRankingEgo.items()
+        print "List of (movies,ratings) that the user", uid, "will watch and his ratings given by egocentricRecommendation :"
+        print itemRankingEgo
         print "done with egocentric recommendation for user ID", uid, "\n"
 
         print "\ngetting collaborative recommendation for user ID", uid
-        collaborativeRecommend(uid, G, clusters, userSequence, userSimilarity, dbFileName)
+        itemRankingColl = collaborativeRecommend(uid, clusters, userSequenceTrain, testDataItems, userSimilarity)
+        #itemRankingColl = itemRankingColl.items()
+        print "List of (movies,ratings) that the user", uid, "will watch and his ratings given by collaborative recommendation :"
+        print itemRankingColl
         print "done with collaborative recommendation for user ID", uid, "\n"
 
         #using contentReco.pickle and collabReco.pickle, generate a combined rank list and write it onto combinedReco.pickle
-        combineLists(G, userProfiles[uid]["alpha"], uid, userSequence[uid], dbFileName)
+        combList = combineLists(userProfile[uid]["alpha"], itemRankingEgo, itemRankingColl)
+        print "Combining egocentric and collaborative recommendation:"
+        print combList
 
 def mae(db=None, testData=None):
     if db:
@@ -1388,6 +1351,6 @@ def mae(db=None, testData=None):
     return mae
 
 if __name__ == "__main__":
-    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", reduceDimensions=True)
+    mainImport(db="movielens_1m", usageData="movielens_1m_userData.json", formClusters=True,rmsErrorForAll=True)
     
 #cleanUniqueAttribs=["imdb_id","title"]
