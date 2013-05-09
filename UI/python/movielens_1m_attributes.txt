@@ -1,0 +1,14 @@
+rating
+genres
+rated
+language
+title
+country
+directors
+imdb_id
+filming_locations
+writers
+actors
+year
+type
+id
