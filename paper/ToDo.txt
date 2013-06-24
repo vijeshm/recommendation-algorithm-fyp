@@ -1,0 +1,27 @@
+I've noted down the changes that have to be made.  For the plots, just get the data and plug it into the Book1.xlsx or Book1_without.xlsx approapriately.
+
+Algorithms to be written:
+    Algorithm 1: keyValueNodes for categorical data
+    Algorithm 2: keyValueNodes for non-categorical data
+    Algorithm 3: Creating User Profiles
+    Algorithm 4: Dimensionality Reduction of Attributes
+    Algorithm 5: Dimensionality Reduction of Values
+    Algorithm 6: Computing User Similarity
+    Algorithm 7: Clustering the users
+    Algorithm 8: Idiosyncratic Rating Prediction
+    Algorithm 9: Collaborative recommendation based on user similarity
+
+Figures to be replaced:
+    Figure 2: Create an image that illustrates that an edge has a set of common properties.
+    Figure 3: The bar graph indicates the weights that users $2987$, $3552$ and $5997$ (from the MovieLens Dataset) have given to the corresponding attributes. - get a similar plot for the users 2987, 3552 and 5997.
+    Figure 4: The figure indicates the weights for various dimensions of the aggregated MovieLens Dataset, calculated using the above formula. - redraw the plot for the newly computed data during FYP.
+    Figure 5: Relative Attribute Importance for the user 2987 of the MovieLens dataset
+    Figure 6: check out the relative value importances of a number of attributes. choosing language here would be trivial, so choose another attribute. and see if we can get a well distributed one.
+    Figure 7: fetch all the relative attribute importances for the dataset and plot them.
+
+Section 7.3: Experimental results
+    get the plot for user 2987, and explain it in a similar fashion as that of the commented lines.
+    compute the graph density and average degree for the item graph and plug it in.
+    compute the ratio of RAIs for actors and directors, actors and genres and plugin the values
+
+Arent we considering the value importance for computing similarity? Need to check this out and change the algorithm appropriately.
