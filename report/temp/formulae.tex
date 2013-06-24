@@ -1,0 +1,41 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{subfigure}
+\setcounter{tocdepth}{3}
+\usepackage{graphicx}
+\usepackage{enumerate}
+\usepackage{verbatim}
+
+%opening
+\title{}
+\author{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+\section{test}
+$weight_v = \frac{\sum_{a \in A} w_{u_p}[a][v]}{Number\ of\ Values}$
+\newline
+
+$Intrscn = [a\ |\ a \in edge\ attribute\ of\ subgraph(items\ of\ u_p\ \cap items\ of\ u_q, G)]$\\
+\newline
+
+$Union = [a\ |\ a \in edge\ attribute\ of\ subgraph(items\ of\ u_p\ \cup items\ of\ u_q, G)]$\\
+\newline
+
+$sim(u_p, u_q) = \frac{\sum (w_{u_p}[a]\ +\ w_{u_q}[a])*relFreq(a, Intrscn)\ \forall\ a\ \in\ set(Intrscn))}{\sum (w_{u_p}[a]\ +\ w_{u_q}[a])*relFreq(a, Union) \forall\ a\ \in\ set(Union))}$
+\newline
+where $relFreq(attrib, list)$ returns the relative frequency of occurance of $attrib$ in $list$.
+
+
+\end{document}
