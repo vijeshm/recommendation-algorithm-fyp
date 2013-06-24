@@ -1,0 +1,10 @@
+Test Cases:
+1. corrupt the item dataset in the following ways:
+    item doesnt have an id
+    attribute contains invalid characters
+    type of an item's attribute is not defined
+    attribute should be a list
+2. corrupt the user dataset
+    put an item that is not in the item set
+    dont a rating
+3. Have a user with no userData and check out the recommendations
